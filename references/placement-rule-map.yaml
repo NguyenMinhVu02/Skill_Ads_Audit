@@ -1,0 +1,221 @@
+# ADS SCRIPTS.csv remains authoritative for app-specific keys and IDs.
+# This file documents the approved base implementation evidence expected by
+# the static auditor and by manual reviewers.
+
+base_pipeline:
+  application:
+    class: GlobalApp
+    required_order:
+      - MobileAds.initialize
+      - DevConfig.init
+      - AdRemoteConfig.initializeFromAssets
+      - ERainAd.getInstance().init
+    required_tokens:
+      - BuildConfig.ERAIN_STUDIO_VERSION
+      - BuildConfig.PLAY_SERVICES_ADS_VERSION
+      - BuildConfig.GDPR_MODULE_VERSION
+      - AdjustConfig
+      - facebookClientToken
+      - adjustTokenTiktok
+      - intervalInterstitialAd
+      - ProcessLifecycleOwner.get().lifecycle.addObserver
+      - registerActivityLifecycleCallbacks
+
+  splash:
+    class: SplashActivity
+    loads:
+      - key: inter_splash
+        call: ERainAd.getInstance().loadSplashInterstitialAds
+        gates:
+          - AdRemoteConfig.inter_splash.isEnable
+          - isNetwork
+        callbacks:
+          - onAdLoaded: AdsManager.loadNativeLanguage
+          - onNextAction: moveActivity
+      - key: open_resume
+        call: AppOpenManager.getInstance().setAppResumeAdId
+        gate: ResumeAdsEntryRule.shouldEnableOpenResume
+
+  language:
+    class: LanguageActivity
+    dev_setting: mBinding.tvTitle.setOnAdminAdToggleListener
+    loads:
+      - key_family: native_language_click
+        call: AdsManager.loadNativeLanguageClick
+        timing: root.postDelayed 100ms
+        live_data: AdsManager.nativeLanguageClickAdLive
+      - key_family: native_onboarding_1
+        call: AdsManager.loadNativeOnboarding1
+        timing: root.postDelayed 100ms
+        live_data: AdsManager.nativeOnboarding1AdLive
+    renders:
+      - live_data: AdsManager.nativeLanguageAdLive
+      - live_data: AdsManager.nativeLanguageClickAdLive
+      - call: populateNativeAdView
+      - null_or_offline: hide flAds
+
+  onboarding:
+    class: OnBoardingActivity
+    loads:
+      - key_family: native_onboarding_4
+        call: AdsManager.loadNativeOnboarding4
+        timing: root.postDelayed 100ms
+        live_data: AdsManager.nativeOnboarding4AdLive
+        gate: ERainAd.getInstance().getShouldDisplayNativeOnboardingNormal2(config.enableUaCheck)
+      - key_family: native_onboarding_fullscreen
+        call: AdsManager.loadNativeOnboardingFull
+        timing: root.postDelayed 100ms
+        live_data: AdsManager.nativeAdOnBoardingFullLive
+        gate: ERainAd.getInstance().getShouldDisplayNativeOnboardingFull1(config.enableUaCheck)
+      - key: inter_onboarding
+        load_call: AdsManager.loadInterOnboarding
+        show_call: AdsManager.showInterOnboarding
+        gate: ERainAd.getInstance().getShouldDisplayInterOnboarding(config.enableUaCheck)
+        callback: Routes.startMainActivity
+      - key_family: uninstall_widget
+        gate: ERainAd.getInstance().getShouldDisplayWidgetUninstall(config.enableUaCheck)
+
+  onboarding_page:
+    class: OnboardingPageFragment
+    live_data:
+      - AdsManager.nativeOnboarding1AdLive
+      - AdsManager.nativeOnboarding4AdLive
+      - AdsManager.nativeAdOnBoardingFullLive
+    render_call: populateNativeAdView
+    null_behavior: hide normal/full ad region
+
+  resume_welcome:
+    rule_class: ResumeAdsEntryRule
+    observer_class: AppLifecycleObserver
+    disabled_screens:
+      - SplashActivity
+      - LanguageActivity
+      - OnBoardingActivity
+      - WelcomeActivity
+      - SurveyActivity
+    gates:
+      - ResumeAdsEntryRule.shouldShowWelcomeOnResume
+      - AppOpenManager.getInstance().isInterstitialShowing
+      - AppPurchase.getInstance().isPurchased
+      - ERainAd.getInstance().getShouldDisplayInterWelcomeBack(AdRemoteConfig.inter_welcome.enableUaCheck)
+    route: Routes.startWelcomeActivity
+
+  welcome:
+    class: WelcomeActivity
+    loads:
+      - key: native_welcome
+        call: AdsManager.loadNativeWelcome
+        gate: ERainAd.getInstance().getShouldDisplayNativeWelcomeBack(config.enableUaCheck)
+        live_data: AdsManager.nativeWelcomeAdLive
+      - key: inter_welcome
+        load_call: AdsManager.loadInterWelcome
+        show_call: AdsManager.showInterWelcome
+        gate: ERainAd.getInstance().getShouldDisplayInterWelcomeBack(config.enableUaCheck)
+        callback: finish
+
+  banner:
+    base_class: BaseActivityWithBanner
+    manager_call: AdsManager.loadBanner
+    gates:
+      - bannerConfig.adUnitConfig.isEnable
+      - AppPurchase.getInstance().isPurchased
+      - R.id.fr_banner
+    reload: bannerConfig.adUnitConfig.reloadIntervalSeconds
+    variants:
+      - ERainAd.getInstance().loadBanner
+      - ERainAd.getInstance().loadCollapsibleBanner
+
+known_placements:
+  inter_splash:
+    class: SplashActivity
+    call: loadSplashInterstitialAds
+    preload_after_loaded: AdsManager.loadNativeLanguage
+  native_language_1:
+    class: SplashActivity
+    call: loadNativeLanguage
+    shown_in: LanguageActivity
+    live_data: AdsManager.nativeLanguageAdLive
+  native_language_2:
+    class: SplashActivity
+    call: loadNativeLanguage
+    shown_in: LanguageActivity
+    live_data: AdsManager.nativeLanguageAdLive
+  native_language_1_click:
+    class: LanguageActivity
+    call: loadNativeLanguageClick
+    live_data: AdsManager.nativeLanguageClickAdLive
+  native_language_2_click:
+    class: LanguageActivity
+    call: loadNativeLanguageClick
+    live_data: AdsManager.nativeLanguageClickAdLive
+  native_onboarding_1_1:
+    class: LanguageActivity
+    call: loadNativeOnboarding1
+    shown_in: OnboardingPageFragment
+    live_data: AdsManager.nativeOnboarding1AdLive
+  native_onboarding_2_1:
+    class: LanguageActivity
+    call: loadNativeOnboarding1
+    shown_in: OnboardingPageFragment
+    live_data: AdsManager.nativeOnboarding1AdLive
+  native_onboarding_1_4:
+    class: OnBoardingActivity
+    call: loadNativeOnboarding4
+    gate: getShouldDisplayNativeOnboardingNormal2
+    shown_in: OnboardingPageFragment
+    live_data: AdsManager.nativeOnboarding4AdLive
+  native_onboarding_2_4:
+    class: OnBoardingActivity
+    call: loadNativeOnboarding4
+    gate: getShouldDisplayNativeOnboardingNormal2
+    shown_in: OnboardingPageFragment
+    live_data: AdsManager.nativeOnboarding4AdLive
+  native_onboarding_fullscreen_1_3:
+    class: OnBoardingActivity
+    call: loadNativeOnboardingFull
+    gate: getShouldDisplayNativeOnboardingFull1
+    shown_in: OnboardingPageFragment
+    live_data: AdsManager.nativeAdOnBoardingFullLive
+  native_onboarding_fullscreen_2_3:
+    class: OnBoardingActivity
+    call: loadNativeOnboardingFull
+    gate: getShouldDisplayNativeOnboardingFull1
+    shown_in: OnboardingPageFragment
+    live_data: AdsManager.nativeAdOnBoardingFullLive
+  inter_onboarding:
+    class: OnBoardingActivity
+    call: showInterOnboarding
+    load_call: AdsManager.loadInterOnboarding
+    gate: getShouldDisplayInterOnboarding
+    runtime_proof: click final onboarding next, close/fail inter, then Main opens
+  open_resume:
+    class: SplashActivity
+    call: setAppResumeAdId
+    gate: ResumeAdsEntryRule.shouldEnableOpenResume
+  native_home:
+    class: MainActivity
+    call: loadNativeHome
+    gate: getShouldDisplayNativeHome
+  banner_home:
+    class: MainActivity
+    call: banner_home
+    manager_call: AdsManager.loadBanner
+  native_welcome:
+    class: WelcomeActivity
+    call: loadNativeWelcome
+    gate: getShouldDisplayNativeWelcomeBack
+    live_data: AdsManager.nativeWelcomeAdLive
+  inter_welcome:
+    class: WelcomeActivity
+    call: showInterWelcome
+    load_call: AdsManager.loadInterWelcome
+    gate: getShouldDisplayInterWelcomeBack
+    runtime_proof: resume app, Welcome opens, tap CTA, close/fail inter, previous screen resumes
+  inter_welcome_back:
+    class: AppLifecycleObserver
+    call: getShouldDisplayInterWelcomeBack
+    required_chain:
+      - ResumeAdsEntryRule.shouldShowWelcomeOnResume
+      - Routes.startWelcomeActivity
+      - WelcomeActivity:AdsManager.loadInterWelcome
+      - WelcomeActivity:AdsManager.showInterWelcome

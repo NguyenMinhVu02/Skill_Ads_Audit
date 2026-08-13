@@ -1,0 +1,4 @@
+interface:
+  display_name: "Infinity Ads Audit"
+  short_description: "Audit Android ads integration compliance"
+  default_prompt: "Use $infinity-ads-compliance-audit to audit this Android project with its ADS SCRIPTS and working-file CSVs."

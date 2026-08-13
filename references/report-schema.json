@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Infinity Ads Audit MKT Webhook Payload",
+  "type": "object",
+  "required": ["ket_qua", "ten_app", "package_name", "tong_quan", "loi", "can_xac_nhan"],
+  "properties": {
+    "ket_qua": {"enum": ["ĐẠT", "CẦN SỬA", "CẦN KỸ THUẬT XÁC NHẬN"]},
+    "ten_app": {"type": "string"},
+    "package_name": {"type": "string"},
+    "tong_quan": {
+      "type": "object",
+      "required": ["loi_can_sua", "can_ky_thuat_xac_nhan", "muc_da_kiem_tra_dung"],
+      "properties": {
+        "loi_can_sua": {"type": "integer"},
+        "can_ky_thuat_xac_nhan": {"type": "integer"},
+        "muc_da_kiem_tra_dung": {"type": "integer"}
+      }
+    },
+    "loi": {"type": "array", "items": {"type": "object"}},
+    "can_xac_nhan": {"type": "array", "items": {"type": "string"}},
+    "trang_thai_ky_thuat": {"enum": ["BLOCKED", "REVIEW_REQUIRED"]}
+  }
+}

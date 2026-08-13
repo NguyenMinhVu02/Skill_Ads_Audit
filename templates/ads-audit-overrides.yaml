@@ -1,0 +1,12 @@
+# Use only for an Infinity-approved project-specific exception or a placement whose
+# class/event cannot be inferred from ADS SCRIPTS.csv. Keep this file with the app.
+placements:
+  # inter_partner_feature:
+  #   class: PartnerFeatureActivity
+  #   load_call: AdsManager.loadInterPartnerFeature
+  #   show_call: AdsManager.showInterPartnerFeature
+  #   event: "user taps Download"
+  # inter_welcome_back:
+  #   observer_class: AppLifecycleObserver
+  #   welcome_class: WelcomeActivity
+approved_direct_sdk_calls: []
