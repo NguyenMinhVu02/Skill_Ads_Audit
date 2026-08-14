@@ -43,7 +43,9 @@ Auditor không bắt mọi đối tác dùng cùng một mẫu bảng. Với fil
 - alias phổ biến như `Ad Unit ID`, `Placement Name`, `Ad Type`, `Tên vị trí`, `Loại quảng cáo`;
 - cột ID không có tên nếu dữ liệu trong cột đó rõ ràng giống ad-unit ID (ví dụ `ca-app-pub-.../...`).
 
-Skill luôn ưu tiên cột ID được đặt tên rõ ràng. Nếu file quá mơ hồ để map an toàn, audit sẽ dừng và báo các header đã phát hiện, không tự đoán sai placement. Working file cũng được tự nhận diện delimiter và dòng header, nhưng vẫn dùng hai trường nghiệp vụ `Task Detail` và `Document`.
+Working file cũng không bắt buộc một mẫu cột cố định. Skill nhận các cặp key/value như `Task Detail / Document`, `Content / Detail`, `Field / Value`, `Key / Data` và các tên tiếng Việt thông dụng. Thứ tự cột không quan trọng; các cột phụ như `Order`, `PIC`, người phụ trách hoặc trạng thái sẽ được bỏ qua. Các nhãn dòng như `Application name`, `Bundle ID` và `Firebase project` được chuẩn hóa về trường checklist tương ứng.
+
+Khi header lạ, parser có thể suy luận từ nội dung dễ nhận biết như nhãn checklist, package name, Firebase URL, placement key, loại quảng cáo và ad-unit ID. Alias rõ ràng luôn được ưu tiên. Nếu hai cột có khả năng đúng ngang nhau hoặc độ tin cậy thấp, audit sẽ dừng và báo delimiter, header cùng semantic còn thiếu, không âm thầm đọc nhầm dữ liệu.
 
 Nếu có nhiều CSV trùng loại, truyền đường dẫn thủ công:
 
@@ -134,6 +136,13 @@ Cả Codex và Claude đều cần Python 3.10 trở lên để chạy auditor. 
 ## Chạy auditor Python trực tiếp (tùy chọn)
 
 Tại thư mục gốc repository của đối tác:
+
+```bash
+python3 "/duong-dan/infinity-ads-compliance-audit/scripts/run_audit.py" \
+  --project .
+```
+
+Python CLI tự tìm hai CSV giống lệnh npx. Nếu không tìm thấy hoặc có nhiều file trùng loại, hãy truyền đường dẫn cụ thể; đường dẫn truyền tay luôn được ưu tiên:
 
 ```bash
 python3 "/duong-dan/infinity-ads-compliance-audit/scripts/run_audit.py" \

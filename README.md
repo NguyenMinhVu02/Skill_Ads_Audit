@@ -43,7 +43,9 @@ The auditor does not require every partner to use the same spreadsheet layout. F
 - common aliases such as `Ad Unit ID`, `Placement Name`, `Ad Type`, `Tên vị trí`, and `Loại quảng cáo`;
 - an unnamed ID column when its values clearly look like ad-unit IDs (for example `ca-app-pub-.../...`).
 
-The parser always prefers an explicitly named ID column. If the file is too ambiguous to map safely, the audit stops and reports the detected headers instead of silently auditing the wrong placements. The working file receives the same delimiter and header-row detection while retaining its `Task Detail` and `Document` fields.
+The working file is flexible too. It recognizes key/value pairs such as `Task Detail / Document`, `Content / Detail`, `Field / Value`, `Key / Data`, and their common Vietnamese equivalents. Column order and unrelated columns such as `Order`, `PIC`, owner, or status do not matter. Row labels such as `Application name`, `Bundle ID`, and `Firebase project` are normalized to the expected checklist fields.
+
+When headers are unfamiliar, the parser can infer columns from recognizable values: checklist labels, package names, Firebase URLs, placement keys, ad formats, and ad-unit IDs. Explicit aliases always win. If two columns are equally plausible or confidence is too low, the audit stops and reports the delimiter, detected headers, and missing semantics instead of silently auditing the wrong data.
 
 If the CLI reports multiple CSV candidates, pass the files explicitly:
 
@@ -134,6 +136,13 @@ Both Codex and Claude require Python 3.10 or newer for the bundled auditor. `npx
 ## Run the Python auditor directly (optional)
 
 From the partner repository root:
+
+```bash
+python3 "/path/to/infinity-ads-compliance-audit/scripts/run_audit.py" \
+  --project .
+```
+
+The Python CLI now auto-discovers the same two files as the npx command. When there are zero or multiple candidates, pass explicit paths; supplied paths always take precedence:
 
 ```bash
 python3 "/path/to/infinity-ads-compliance-audit/scripts/run_audit.py" \

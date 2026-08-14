@@ -9,15 +9,17 @@ Treat the supplied CSVs as the app-specific contract. Treat the bundled base rul
 
 ## Run the audit
 
-1. Find the partner `ADS SCRIPTS` CSV and working-file CSV. If either is unavailable, ask for it; do not substitute base IDs.
-2. Run the bundled auditor yourself from the partner project root. Resolve `scripts/run_audit.py` relative to the directory containing this `SKILL.md`; do not assume the skill lives under `.agents/skills`, because Codex and Claude Code use different skill locations. The partner only needs to ask the AI host to check; never require them to type a terminal command.
+1. Confirm the partner project contains its `ADS SCRIPTS` CSV and working-file CSV. Never substitute base IDs.
+2. Run the bundled auditor yourself from the partner project root. Resolve `scripts/run_audit.py` relative to the directory containing this `SKILL.md`; do not assume the skill lives under `.agents/skills`, because Codex and Claude Code use different skill locations. The Python runner auto-discovers one CSV of each kind, so the partner only needs to ask the AI host to check.
 
 ```bash
 python3 "/absolute/path/to/this-skill/scripts/run_audit.py" \
-  --project . \
-  --ads-script "/path/to/ADS SCRIPTS.csv" \
-  --working-file "/path/to/working file.csv"
+  --project .
 ```
+
+If discovery reports zero or multiple candidates, rerun with explicit `--ads-script` and `--working-file` paths. Explicit paths always override discovery.
+
+CSV layouts may vary by partner. Prefer recognized aliases, including working-file pairs such as `Task Detail / Document`, `Content / Detail`, and `Field / Value`; otherwise use the bundled parser's guarded content inference. If the parser reports an ambiguous layout, stop and request a clearer header or explicit mapping. Never guess between tied columns.
 
 If the skill directory cannot be resolved, use the published fallback from the project root instead:
 
