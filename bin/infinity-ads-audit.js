@@ -171,6 +171,14 @@ export function main(argv = process.argv.slice(2)) {
   return result.status ?? 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  process.exitCode = main();
+if (process.argv[1]) {
+  let invokedPath = path.resolve(process.argv[1]);
+  let modulePath = fileURLToPath(import.meta.url);
+  try {
+    invokedPath = fs.realpathSync(invokedPath);
+    modulePath = fs.realpathSync(modulePath);
+  } catch {
+    // Keep the resolved paths when the entry point is being inspected or tested.
+  }
+  if (invokedPath === modulePath) process.exitCode = main();
 }
