@@ -113,13 +113,35 @@ function removeFlag(args, name) {
   return result;
 }
 
-function findPython() {
-  for (const command of ["python3", "python"]) {
-    const version = spawnSync(command, ["--version"], { encoding: "utf8" });
-    const output = `${version.stdout || ""}\n${version.stderr || ""}`;
-    const match = output.match(/Python\s+(\d+)\.(\d+)/i);
-    if (version.status === 0 && match && (Number(match[1]) > 3 || (Number(match[1]) === 3 && Number(match[2]) >= 10))) {
-      return command;
+export function findPython() {
+  const candidates = [
+    process.env.PYTHON,
+    "python3",
+    "python3.14",
+    "python3.13",
+    "python3.12",
+    "python3.11",
+    "python3.10",
+    "/opt/homebrew/bin/python3",
+    "/usr/local/bin/python3",
+    "python",
+    "py",
+  ].filter(Boolean);
+
+  for (const command of candidates) {
+    try {
+      const version = spawnSync(command, ["--version"], { encoding: "utf8" });
+      const output = `${version.stdout || ""}\n${version.stderr || ""}`;
+      const match = output.match(/Python\s+(\d+)\.(\d+)/i);
+      if (version.status === 0 && match) {
+        const major = Number(match[1]);
+        const minor = Number(match[2]);
+        if (major > 3 || (major === 3 && minor >= 9)) {
+          return command;
+        }
+      }
+    } catch {
+      // continue searching
     }
   }
   return null;
@@ -156,7 +178,7 @@ export function main(argv = process.argv.slice(2)) {
 
   const python = findPython();
   if (!python) {
-    console.error("Python 3.10 or newer is required. Install Python, then run this command again.");
+    console.error("Python 3.9 or newer is required. Install Python, then run this command again.");
     return 1;
   }
 

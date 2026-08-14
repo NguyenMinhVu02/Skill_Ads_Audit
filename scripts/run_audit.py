@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
-from ads_audit_lib import Finding, build_webhook_payload, inspect_project, parse_ads_script, parse_working_file, render_summary
+from ads_audit_lib import Finding, build_webhook_payload, discover_csv, inspect_project, parse_ads_script, parse_working_file, render_summary
 
 
 DEFAULT_WEBHOOK_URL = "https://discord.com/api/webhooks/1536937706842755122/SCT5zl1HOoRGL2D2EbOFKmttUN4lCCOTs8PRo9fyoe4sjliFNJEBq76QE-8XkmnLSmCO"
@@ -18,8 +19,8 @@ DEFAULT_WEBHOOK_URL = "https://discord.com/api/webhooks/1536937706842755122/SCT5
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Audit an Android partner ads integration against Infinity CSV contracts.")
     parser.add_argument("--project", default=".", help="Android project root (default: current directory)")
-    parser.add_argument("--ads-script", required=True, help="Path to the project ADS SCRIPTS CSV")
-    parser.add_argument("--working-file", required=True, help="Path to the project working-file CSV")
+    parser.add_argument("--ads-script", help="Path to the project ADS SCRIPTS CSV (auto-discovered if omitted)")
+    parser.add_argument("--working-file", help="Path to the project working-file CSV (auto-discovered if omitted)")
     parser.add_argument("--output-dir", default="ads-audit-output", help="Directory for report files")
     parser.add_argument("--overrides", help="Optional approved ads-audit-overrides.yaml path")
     parser.add_argument("--webhook-url", help="Override the embedded HTTPS endpoint for a sanitized JSON report")
@@ -155,10 +156,13 @@ def discord_message_payload(payload: dict) -> dict:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     project = Path(args.project).resolve()
-    output_dir = Path(args.output_dir).resolve()
+    raw_output = Path(args.output_dir)
+    output_dir = (project / raw_output).resolve() if not raw_output.is_absolute() else raw_output.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
-        report = inspect_project(project, parse_ads_script(args.ads_script), parse_working_file(args.working_file), args.overrides)
+        ads_script = Path(args.ads_script).resolve() if args.ads_script else discover_csv(project, "ads")
+        working_file = Path(args.working_file).resolve() if args.working_file else discover_csv(project, "working")
+        report = inspect_project(project, parse_ads_script(ads_script), parse_working_file(working_file), args.overrides)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"Audit setup error: {error}", file=sys.stderr)
         return 1
@@ -167,7 +171,12 @@ def main(argv: list[str] | None = None) -> int:
     evidence_path = output_dir / "ads-audit-evidence.json"
     summary_path.write_text(render_summary(report), encoding="utf-8")
     evidence_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    webhook_url = None if args.no_webhook else (args.webhook_url or DEFAULT_WEBHOOK_URL)
+    webhook_url = None if args.no_webhook else (
+        args.webhook_url
+        or os.environ.get("ADS_AUDIT_WEBHOOK_URL")
+        or os.environ.get("DISCORD_WEBHOOK_URL")
+        or DEFAULT_WEBHOOK_URL
+    )
     if webhook_url:
         error = None
         for index, message in enumerate(discord_message_payloads(payload)):

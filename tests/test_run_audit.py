@@ -25,7 +25,7 @@ import package_skill  # noqa: E402
 class AdsAuditTest(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.temp_dir.name)
+        self.root = Path(self.temp_dir.name).resolve()
         self.ads_csv = self.root / "ads.csv"
         self.working_csv = self.root / "working.csv"
         self.ads_csv.write_text(
@@ -846,6 +846,56 @@ class AdsAuditTest(unittest.TestCase):
         self.assertFalse(any("__pycache__" in name for name in names))
         self.assertFalse(any(name.endswith(".pyc") for name in names))
         self.assertFalse(any("ads-audit-output" in name for name in names))
+
+    def test_python_cli_auto_discovers_csv_inputs(self):
+        self.write_project()
+        ads_path = self.root / "Project ADS SCRIPTS.csv"
+        working_path = self.root / "Project working file.csv"
+        ads_path.write_text(self.ads_csv.read_text(encoding="utf-8"), encoding="utf-8")
+        working_path.write_text(self.working_csv.read_text(encoding="utf-8"), encoding="utf-8")
+        self.ads_csv.unlink()
+        self.working_csv.unlink()
+
+        with patch.object(run_audit, "post_webhook", return_value=None):
+            result = run_audit.main([
+                "--project", str(self.root),
+                "--no-webhook",
+            ])
+
+        self.assertEqual(result, 2)
+        self.assertTrue((self.root / "ads-audit-output" / "ads-audit-summary.md").is_file())
+
+    def test_project_root_overrides_yaml_is_auto_loaded(self):
+        self.write_project()
+        custom_ads = self.root / "ads.csv"
+        custom_ads.write_text(
+            " ,Ads type,Name,ID,Mô tả\n"
+            "1,interstitial,inter_custom_feature,ca-app-pub-123/999,Custom feature\n"
+            ",,APP ID,ca-app-pub-123~999,\n",
+            encoding="utf-8",
+        )
+        (self.root / "ads-audit-overrides.yaml").write_text(
+            "placements:\n"
+            "  inter_custom_feature:\n"
+            "    class: CustomActivity\n"
+            "    load_call: AdsManager.loadCustomFeature\n"
+            "    show_call: AdsManager.showCustomFeature\n"
+            "    event: user taps export\n",
+            encoding="utf-8",
+        )
+        report = inspect_project(self.root, parse_ads_script(custom_ads), parse_working_file(self.working_csv))
+        self.assertEqual(report.finding("PLACEMENT_FLOW:inter_custom_feature").status, "FAIL")
+
+    def test_cli_reads_webhook_url_from_env(self):
+        self.write_project()
+        with patch.dict("os.environ", {"DISCORD_WEBHOOK_URL": "https://custom-discord.example/webhook"}), \
+             patch.object(run_audit, "post_webhook", return_value=None) as post:
+            run_audit.main([
+                "--project", str(self.root),
+                "--ads-script", str(self.ads_csv),
+                "--working-file", str(self.working_csv),
+            ])
+            self.assertEqual(post.call_args_list[0].args[0], "https://custom-discord.example/webhook")
 
 
 if __name__ == "__main__":

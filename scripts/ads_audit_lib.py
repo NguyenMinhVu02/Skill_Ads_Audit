@@ -51,8 +51,31 @@ _HEADER_ALIASES = {
         "loaiads",
     },
     "Mô tả": {"mota", "description", "desc", "des", "note", "ghichu"},
-    "Task Detail": {"taskdetail", "congviec", "chitietcongviec"},
-    "Document": {"document", "doc", "link", "tailieu"},
+    "Task Detail": {
+        "taskdetail",
+        "congviec",
+        "chitietcongviec",
+        "content",
+        "noidung",
+        "field",
+        "fieldname",
+        "tentruong",
+        "key",
+        "muc",
+        "hangmuc",
+    },
+    "Document": {
+        "document",
+        "doc",
+        "link",
+        "tailieu",
+        "detail",
+        "chitiet",
+        "value",
+        "giatri",
+        "data",
+        "dulieu",
+    },
 }
 
 
@@ -291,6 +314,28 @@ def parse_working_file(path: str | Path) -> ProjectChecklist:
         required_values={key: value for key, value in values.items() if key in SECRET_LABELS or key == "Facebook App ID"},
         source=str(path),
     )
+
+
+def discover_csv(project_root: str | Path, kind: str) -> Path:
+    root = Path(project_root).resolve()
+    matches: list[Path] = []
+    for candidate in root.rglob("*.csv"):
+        if any(part in SKIP_DIRS or part == "ads-audit-output" for part in candidate.relative_to(root).parts):
+            continue
+        normalized = re.sub(r"[^a-z0-9]+", "", candidate.name.lower())
+        is_match = ("adsscripts" in normalized) if kind == "ads" else ("working" in normalized or "workfile" in normalized)
+        if is_match:
+            matches.append(candidate.resolve())
+
+    matches.sort()
+    flag = "--ads-script" if kind == "ads" else "--working-file"
+    label = "ADS SCRIPTS" if kind == "ads" else "working-file"
+    if not matches:
+        raise FileNotFoundError(f"Could not find a {label} CSV under {root}. Pass {flag} \"path/to/file.csv\".")
+    if len(matches) > 1:
+        listed = "\n".join(f"  - {path.relative_to(root)}" for path in matches)
+        raise ValueError(f"Found multiple {label} CSV files. Pass {flag} explicitly:\n{listed}")
+    return matches[0]
 
 
 def _firebase_project(value: str) -> str | None:
@@ -900,12 +945,7 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
     _check_equal(report, "ADMOB_APP_ID", "identity", contract.admob_app_id, app_id, "Set the AdMob manifest placeholder to the ADS Script APP ID.")
     if "com.google.android.gms.ads.APPLICATION_ID" not in manifest_text:
         report.findings.append(Finding.fail("ADMOB_MANIFEST_META", "identity", "AdMob APPLICATION_ID meta-data", "missing", "Add the Google Mobile Ads APPLICATION_ID meta-data entry to AndroidManifest.xml."))
-    else:
-        report.findings.append(Finding.pass_("ADMOB_MANIFEST_META", "identity", "AdMob APPLICATION_ID meta-data", "found"))
     string_paths = [path for path in all_text_paths if path.name == "strings.xml"]
-    # Android's default resource (`res/values`) is the app identity. Locale
-    # files may intentionally contain translated names and must not override
-    # the contract value merely because filesystem traversal lists them first.
     string_paths.sort(key=lambda path: (path.parent.name != "values", str(path)))
     app_name = None
     for string_path in string_paths:
@@ -914,9 +954,6 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
             app_name = unescape(match.group(1).strip())
             break
     _check_equal(report, "APP_NAME", "identity", checklist.app_name, app_name, "Set `app_name` to the working checklist value.")
-    # The partner contract is the release configuration. Debug/test IDs are
-    # intentionally not compared with ADS SCRIPTS because they are expected to
-    # differ from production IDs.
     _check_config(report, root, contract, "ad_config.json", "RELEASE")
     searchable = _combined_text(all_text_paths)
     for key, value in checklist.required_values.items():
@@ -975,6 +1012,8 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
         report.findings.append(Finding.pass_("ARCH_DIRECT_SDK_BYPASS", "architecture", "no unapproved direct Activity SDK calls", "none found"))
     _check_primary_screen_activities(report, root, manifests, source_paths, navigation_paths)
     _check_screen_flow_rules(report, root, source_paths)
+    if overrides_path is None and (root / "ads-audit-overrides.yaml").is_file():
+        overrides_path = root / "ads-audit-overrides.yaml"
     overrides = _load_overrides(Path(overrides_path) if overrides_path else None)
     _check_flow(report, root, contract, source_paths, overrides)
     _check_inter_welcome_back(report, root, contract, source_paths, manager_text, global_text, overrides)
