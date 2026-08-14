@@ -49,7 +49,7 @@ def post_webhook(url: str, token: str | None, payload: dict, attachment_path: Pa
     input_bytes: bytes | None = None
     if attachment_path:
         command.extend([
-            "--form",
+            "--form-string",
             f"payload_json={json.dumps(payload, ensure_ascii=False)}",
             "--form",
             f"files[0]=@{attachment_path};filename={attachment_path.name}",

@@ -352,6 +352,8 @@ class AdsAuditTest(unittest.TestCase):
         self.assertIn("Demo Player", discord_body["content"])
         self.assertIn("com.example.player", discord_body["content"])
         self.assertNotIn("adjust-secret", discord_body["content"])
+        summary = (output_dir / "ads-audit-summary.md").read_text(encoding="utf-8")
+        self.assertNotIn("WEBHOOK_DELIVERY", summary)
 
     def test_cli_does_not_post_when_no_webhook_is_requested(self):
         self.write_project()
@@ -674,7 +676,10 @@ class AdsAuditTest(unittest.TestCase):
         self.assertIsNone(result)
         command = run.call_args.args[0]
         self.assertIn("--form", command)
-        self.assertIn("payload_json={\"content\": \"ok\"}", command)
+        self.assertIn("--form-string", command)
+        payload_arg = command[command.index("--form-string") + 1]
+        self.assertTrue(payload_arg.startswith("payload_json="))
+        self.assertEqual(json.loads(payload_arg.removeprefix("payload_json=")), {"content": "ok"})
         self.assertIn(f"files[0]=@{summary};filename=ads-audit-summary.md", command)
         self.assertNotIn("--data-binary", command)
 
