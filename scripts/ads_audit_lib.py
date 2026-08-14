@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import io
 import json
 import re
+import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,6 +17,42 @@ from typing import Any, Iterable
 SECRET_LABELS = {"Adjust token", "Facebook Client token", "Tiktok token"}
 SKIP_DIRS = {".git", ".gradle", "build", ".idea", ".worktrees", "out"}
 SOURCE_SUFFIXES = {".kt", ".java"}
+
+_HEADER_ALIASES = {
+    "id": {
+        "id",
+        "adid",
+        "adunit",
+        "adunitid",
+        "adunitidentifier",
+        "placementid",
+        "placementidentifier",
+        "maad",
+        "maid",
+    },
+    "name": {
+        "name",
+        "adname",
+        "placement",
+        "placementname",
+        "slot",
+        "slotname",
+        "ten",
+        "tenvitri",
+    },
+    "Ads type": {
+        "adstype",
+        "adtype",
+        "adformat",
+        "format",
+        "type",
+        "loaiquangcao",
+        "loaiads",
+    },
+    "Mô tả": {"mota", "description", "desc", "des", "note", "ghichu"},
+    "Task Detail": {"taskdetail", "congviec", "chitietcongviec"},
+    "Document": {"document", "doc", "link", "tailieu"},
+}
 
 
 @dataclass(frozen=True)
@@ -95,16 +133,132 @@ def _value(row: dict[str, str], *names: str) -> str:
     return ""
 
 
-def _rows(path: Path) -> Iterable[dict[str, str]]:
-    with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        yield from csv.DictReader(handle)
+def _normalize_header(value: str | None) -> str:
+    decomposed = unicodedata.normalize("NFKD", str(value or ""))
+    without_marks = "".join(character for character in decomposed if not unicodedata.combining(character))
+    return re.sub(r"[^a-z0-9]+", "", without_marks.casefold())
+
+
+def _detect_delimiter(text: str) -> str:
+    sample = "\n".join(text.splitlines()[:80])
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+    except csv.Error:
+        counts = {delimiter: sample.count(delimiter) for delimiter in (",", ";", "\t", "|")}
+        return max(counts, key=counts.get) if any(counts.values()) else ","
+
+
+def _read_table(path: Path) -> tuple[str, list[list[str]]]:
+    text = path.read_text(encoding="utf-8-sig")
+    delimiter = _detect_delimiter(text)
+    return delimiter, list(csv.reader(io.StringIO(text), delimiter=delimiter))
+
+
+def _semantic_header(value: str | None) -> str | None:
+    normalized = _normalize_header(value)
+    for semantic, aliases in _HEADER_ALIASES.items():
+        if normalized in aliases:
+            return semantic
+    return None
+
+
+def _find_header_row(rows: list[list[str]], required: tuple[str, ...]) -> int:
+    for index, row in enumerate(rows[:50]):
+        semantics = {_semantic_header(value) for value in row}
+        if all(field in semantics for field in required):
+            return index
+    for index, row in enumerate(rows):
+        if any(value.strip() for value in row):
+            return index
+    return 0
+
+
+def _looks_like_ad_unit_id(value: str) -> bool:
+    value = value.strip()
+    lowered = value.casefold()
+    if not value or any(character.isspace() for character in value):
+        return False
+    if "/" in value or re.fullmatch(r"[0-9a-f]{8}-[0-9a-f-]{27,}", lowered):
+        return True
+    return lowered.startswith(("ca-app-", "admob", "pub-", "g-"))
+
+
+def _infer_id_column(headers: list[str], data_rows: list[list[str]]) -> int | None:
+    if any(_semantic_header(header) == "id" for header in headers):
+        return None
+
+    candidates: list[tuple[float, int]] = []
+    for column_index, header in enumerate(headers):
+        if _semantic_header(header) is not None:
+            continue
+        values = [row[column_index].strip() for row in data_rows if column_index < len(row) and row[column_index].strip()]
+        if not values:
+            continue
+        id_like_ratio = sum(_looks_like_ad_unit_id(value) for value in values) / len(values)
+        if id_like_ratio < 0.6:
+            continue
+        unique_ratio = len(set(values)) / len(values)
+        score = (id_like_ratio * 10) + unique_ratio
+        candidates.append((score, column_index))
+
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    if len(candidates) > 1 and candidates[0][0] - candidates[1][0] < 1:
+        return None
+    return candidates[0][1]
+
+
+def _canonical_headers(headers: list[str], data_rows: list[list[str]], kind: str) -> list[str]:
+    canonical: list[str] = []
+    for index, header in enumerate(headers):
+        semantic = _semantic_header(header)
+        if semantic is not None:
+            canonical.append(semantic if semantic not in canonical else f"{semantic}_{index}")
+        else:
+            normalized = _normalize_header(header)
+            canonical.append(normalized or f"column_{index}")
+
+    if kind == "ads":
+        inferred_index = _infer_id_column(headers, data_rows)
+        if inferred_index is not None:
+            canonical[inferred_index] = "ID"
+    return canonical
+
+
+def _rows(path: Path, kind: str) -> Iterable[tuple[int, dict[str, str]]]:
+    _, rows = _read_table(path)
+    required = ("name", "Ads type") if kind == "ads" else ("Task Detail", "Document")
+    header_index = _find_header_row(rows, required)
+    if not rows or header_index >= len(rows):
+        return
+    headers = rows[header_index]
+    data_rows = rows[header_index + 1 :]
+    canonical = _canonical_headers(headers, data_rows, kind)
+    for row_number, values in enumerate(data_rows, start=header_index + 2):
+        if not any(value.strip() for value in values):
+            continue
+        padded = values + [""] * max(0, len(canonical) - len(values))
+        yield row_number, {header: padded[index] for index, header in enumerate(canonical)}
+
+
+def _layout_hint(path: Path, kind: str) -> str:
+    try:
+        delimiter, rows = _read_table(path)
+        required = ("name", "Ads type") if kind == "ads" else ("Task Detail", "Document")
+        header_index = _find_header_row(rows, required)
+        headers = rows[header_index] if rows and header_index < len(rows) else []
+        displayed = ", ".join(header.strip() or "<unnamed>" for header in headers)
+        return f" Detected delimiter {delimiter!r} and headers: {displayed or '<none>'}."
+    except (OSError, UnicodeError, csv.Error):
+        return " Could not inspect the CSV layout."
 
 
 def parse_ads_script(path: str | Path) -> AuditContract:
     path = Path(path)
     placements: dict[str, Placement] = {}
     app_id: str | None = None
-    for row_number, row in enumerate(_rows(path), start=2):
+    for row_number, row in _rows(path, "ads"):
         name = _value(row, "Name")
         identifier = _value(row, "ID")
         if name.upper() == "APP ID":
@@ -112,14 +266,19 @@ def parse_ads_script(path: str | Path) -> AuditContract:
         elif name and identifier and _value(row, "Ads type"):
             placements[name] = Placement(name, _value(row, "Ads type"), identifier, _value(row, "Mô tả", "Des", "Description"), row_number)
     if not placements:
-        raise ValueError(f"No placement rows found in ADS Script: {path}")
+        raise ValueError(
+            f"No placement rows found in ADS Script: {path}. "
+            "Expected recognizable columns for Name, Ads type, and an ad-unit ID; "
+            "the file may use an unsupported layout or have no populated placement rows."
+            f"{_layout_hint(path, 'ads')}"
+        )
     return AuditContract(placements=placements, admob_app_id=app_id, source=str(path))
 
 
 def parse_working_file(path: str | Path) -> ProjectChecklist:
     path = Path(path)
     values: dict[str, str] = {}
-    for row in _rows(path):
+    for _, row in _rows(path, "working"):
         key = _value(row, "Task Detail")
         value = _value(row, "Document")
         if key and value:

@@ -33,6 +33,18 @@ Cần có:
 - Python 3.10 trở lên.
 - Dự án Android và hai CSV riêng của app.
 
+### CSV của từng đối tác có thể khác nhau
+
+Auditor không bắt mọi đối tác dùng cùng một mẫu bảng. Với file `ADS SCRIPTS`, skill tự xử lý:
+
+- delimiter là dấu phẩy, chấm phẩy, tab hoặc `|`;
+- tên cột tiếng Anh hoặc tiếng Việt, khác hoa thường và khoảng trắng;
+- một vài dòng tiêu đề/export nằm trước dòng header thật;
+- alias phổ biến như `Ad Unit ID`, `Placement Name`, `Ad Type`, `Tên vị trí`, `Loại quảng cáo`;
+- cột ID không có tên nếu dữ liệu trong cột đó rõ ràng giống ad-unit ID (ví dụ `ca-app-pub-.../...`).
+
+Skill luôn ưu tiên cột ID được đặt tên rõ ràng. Nếu file quá mơ hồ để map an toàn, audit sẽ dừng và báo các header đã phát hiện, không tự đoán sai placement. Working file cũng được tự nhận diện delimiter và dòng header, nhưng vẫn dùng hai trường nghiệp vụ `Task Detail` và `Document`.
+
 Nếu có nhiều CSV trùng loại, truyền đường dẫn thủ công:
 
 ```bash

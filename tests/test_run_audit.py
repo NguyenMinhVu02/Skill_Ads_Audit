@@ -229,6 +229,37 @@ class AdsAuditTest(unittest.TestCase):
         self.assertEqual(checklist.package_name, "com.example.player")
         self.assertEqual(checklist.required_values["Adjust token"], "adjust-secret")
 
+    def test_parses_partner_csv_with_preamble_semicolon_and_alias_headers(self):
+        partner_csv = self.root / "partner-semicolon.csv"
+        partner_csv.write_text(
+            "Exported by partner;2026-08-14\n"
+            "Loại quảng cáo;Tên vị trí;Ad Unit ID;Mô tả\n"
+            "interstitial;inter_splash;ca-app-pub-123/333;Splash placement\n"
+            "native;native_home;ca-app-pub-123/444;Home placement\n"
+            ";APP ID;ca-app-pub-123~999;\n",
+            encoding="utf-8",
+        )
+
+        contract = parse_ads_script(partner_csv)
+
+        self.assertEqual(contract.admob_app_id, "ca-app-pub-123~999")
+        self.assertEqual(contract.placements["native_home"].ad_unit_id, "ca-app-pub-123/444")
+
+    def test_infers_unnamed_ad_unit_id_column_without_confusing_serial_column(self):
+        partner_csv = self.root / "partner-unnamed-id.csv"
+        partner_csv.write_text(
+            " ,Ads type,Name,,Mô tả,Des\n"
+            "1,interstitial,inter_splash,ca-app-pub-123/555,Splash placement,\n"
+            "2,native,native_home,ca-app-pub-123/666,Home placement,\n"
+            ",,APP ID,ca-app-pub-123~999,,\n",
+            encoding="utf-8",
+        )
+
+        contract = parse_ads_script(partner_csv)
+
+        self.assertEqual(contract.placements["inter_splash"].ad_unit_id, "ca-app-pub-123/555")
+        self.assertEqual(contract.admob_app_id, "ca-app-pub-123~999")
+
     def test_redacts_secret_values_and_payload_never_contains_them(self):
         redacted = redact_value("facebook-client-secret")
         payload = build_webhook_payload(

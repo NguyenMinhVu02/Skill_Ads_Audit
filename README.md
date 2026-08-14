@@ -33,6 +33,18 @@ Requirements:
 - Python 3.10 or newer.
 - The Android project and its two app-specific CSV files.
 
+### Partner CSV formats
+
+The auditor does not require every partner to use the same spreadsheet layout. For the `ADS SCRIPTS` file it automatically handles:
+
+- comma, semicolon, tab, or pipe delimiters;
+- English or Vietnamese column labels, with different capitalization and spacing;
+- a few title/export rows before the real header row;
+- common aliases such as `Ad Unit ID`, `Placement Name`, `Ad Type`, `Tên vị trí`, and `Loại quảng cáo`;
+- an unnamed ID column when its values clearly look like ad-unit IDs (for example `ca-app-pub-.../...`).
+
+The parser always prefers an explicitly named ID column. If the file is too ambiguous to map safely, the audit stops and reports the detected headers instead of silently auditing the wrong placements. The working file receives the same delimiter and header-row detection while retaining its `Task Detail` and `Document` fields.
+
 If the CLI reports multiple CSV candidates, pass the files explicitly:
 
 ```bash
