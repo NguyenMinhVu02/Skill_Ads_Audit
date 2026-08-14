@@ -57,35 +57,86 @@ npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
 
 Reports are written to `ads-audit-output/ads-audit-summary.md` and `ads-audit-output/ads-audit-evidence.json`. The command reads the Android project; it does not modify source code. Use `--no-webhook` for a local-only report.
 
-## Install as a Codex or Claude Code skill
+## Use with Codex CLI (AI + skill + webhook)
 
-Copy the `infinity-ads-compliance-audit` folder into the partner repository:
+Install for every project on the machine:
+
+```bash
+mkdir -p "$HOME/.agents/skills"
+git clone \
+  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
+  "$HOME/.agents/skills/infinity-ads-compliance-audit"
+```
+
+Or install only in one repository:
 
 ```text
 partner-app/.agents/skills/infinity-ads-compliance-audit/
 ```
 
-Use Python 3.10 or newer. No package installation is required.
+Then run Codex from the Android project root:
 
-## Easiest use: ask Codex
+```bash
+cd partner-app
+codex
+```
 
-After copying the folder into the partner repository, open that repository in Codex and send:
+Ask Codex to invoke the skill with `$infinity-ads-compliance-audit`:
 
 ```text
-Use `infinity-ads-compliance-audit` to audit the current project.
+Use $infinity-ads-compliance-audit to audit the current project.
 Find the ADS SCRIPTS CSV and working-file CSV yourself. Do not change code.
 Do not check app-ads.txt.
 Return a short Vietnamese MKT report with app name, package name, errors to fix, items requiring technical confirmation, and passed checks.
+Send the sanitized report to the configured Discord webhook.
 ```
 
-Codex runs the bundled auditor; the partner does not need to use a terminal.
+Codex reads the skill, runs the bundled auditor, reads the generated reports, and sends the webhook unless the prompt asks for a local-only run. The partner does not need to type the Python command.
+
+## Use with Claude Code (AI + skill + webhook)
+
+Install for every project on the machine:
+
+```bash
+mkdir -p "$HOME/.claude/skills"
+git clone \
+  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
+  "$HOME/.claude/skills/infinity-ads-compliance-audit"
+```
+
+Or install only in one repository:
+
+```text
+partner-app/.claude/skills/infinity-ads-compliance-audit/
+```
+
+Then run Claude Code from the Android project root:
+
+```bash
+cd partner-app
+claude
+```
+
+Invoke the skill with `/infinity-ads-compliance-audit`:
+
+```text
+/infinity-ads-compliance-audit
+
+Audit this Android project. Find the ADS SCRIPTS CSV and working-file CSV,
+do not modify source code, read the generated reports, and send the sanitized
+report to the configured Discord webhook. Reply in Vietnamese.
+```
+
+Claude Code loads skills from `.claude/skills/<skill-name>/SKILL.md` for a project or `$HOME/.claude/skills/<skill-name>/SKILL.md` for the user. If the skill was added while Claude Code was already open, restart it or reload skills.
+
+Both Codex and Claude require Python 3.10 or newer for the bundled auditor. `npx` is only the terminal-only fallback; it does not provide the AI conversation.
 
 ## Run the Python auditor directly (optional)
 
 From the partner repository root:
 
 ```bash
-python3 .agents/skills/infinity-ads-compliance-audit/scripts/run_audit.py \
+python3 "/path/to/infinity-ads-compliance-audit/scripts/run_audit.py" \
   --project . \
   --ads-script "/path/to/ADS SCRIPTS.csv" \
   --working-file "/path/to/working file.csv"
@@ -125,7 +176,7 @@ Use `--no-webhook` only when Infinity requests a local-only audit.
 ## Override webhook (Infinity-approved only)
 
 ```bash
-python3 .agents/skills/infinity-ads-compliance-audit/scripts/run_audit.py \
+python3 "/path/to/infinity-ads-compliance-audit/scripts/run_audit.py" \
   --project . --ads-script "/path/to/ADS SCRIPTS.csv" \
   --working-file "/path/to/working file.csv" \
   --webhook-url "https://your-endpoint.example/audits"
@@ -143,6 +194,11 @@ The CSV is authoritative, so custom keys are allowed. If the tool returns `NEEDS
 
 Splash, Language, Onboarding, Home, and Welcome are primary ads-journey screens and must be separate `Activity` classes following the Infinity base. A single-`Activity` implementation that uses `Fragment`s for those screens is reported as an error. Small UI-only fragments within a compliant Activity screen are allowed.
 
-## Codex use
+## AI invocation summary
 
-Ask: `Use $infinity-ads-compliance-audit to audit this Android project with the supplied ADS SCRIPTS and working-file CSVs.`
+| Host | Install location | Invocation |
+| --- | --- | --- |
+| Codex CLI | `$HOME/.agents/skills/` or `.agents/skills/` | `$infinity-ads-compliance-audit` |
+| Claude Code | `$HOME/.claude/skills/` or `.claude/skills/` | `/infinity-ads-compliance-audit` |
+
+The AI host runs the local auditor and then explains the evidence. The auditor itself is deterministic Python code; `npx` is not an AI runtime.

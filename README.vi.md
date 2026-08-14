@@ -57,35 +57,86 @@ npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
 
 Kết quả nằm trong `ads-audit-output/ads-audit-summary.md` và `ads-audit-output/ads-audit-evidence.json`. Lệnh chỉ đọc dự án Android, không tự sửa source. Dùng `--no-webhook` để chỉ tạo báo cáo local.
 
-## Cài skill cho Codex hoặc Claude Code
+## Dùng với Codex CLI (AI + skill + webhook)
 
-Chép thư mục `infinity-ads-compliance-audit` vào repository của đối tác:
+Cài một lần để dùng trong mọi project trên máy:
+
+```bash
+mkdir -p "$HOME/.agents/skills"
+git clone \
+  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
+  "$HOME/.agents/skills/infinity-ads-compliance-audit"
+```
+
+Hoặc chỉ cài trong một repository:
 
 ```text
 partner-app/.agents/skills/infinity-ads-compliance-audit/
 ```
 
-Cần Python từ phiên bản 3.10. Không cần cài thêm package.
+Sau đó mở Codex tại thư mục gốc Android project:
 
-## Cách dùng dễ nhất: chỉ nhắn Codex
+```bash
+cd partner-app
+codex
+```
 
-Sau khi chép đúng thư mục skill vào repo đối tác, mở repo bằng Codex và gửi đúng prompt này:
+Gọi skill bằng `$infinity-ads-compliance-audit`:
 
 ```text
-Hãy dùng skill `infinity-ads-compliance-audit` để kiểm tra toàn bộ dự án hiện tại.
+Hãy dùng $infinity-ads-compliance-audit để kiểm tra toàn bộ dự án hiện tại.
 Tự tìm ADS SCRIPTS CSV và working-file CSV. Không sửa code.
 Không kiểm tra app-ads.txt.
 Trả về lỗi ngắn gọn bằng tiếng Việt cho MKT, gồm tên app, package name, lỗi cần sửa, mục cần kỹ thuật xác nhận và các mục đã đạt.
+Gửi báo cáo đã làm sạch lên Discord webhook được cấu hình.
 ```
 
-Codex sẽ tự chạy tool bên trong skill. Đối tác không cần dùng Terminal.
+Codex sẽ đọc skill, tự chạy auditor, đọc các file báo cáo và gửi webhook, trừ khi bạn yêu cầu chỉ tạo báo cáo local. Đối tác không cần tự gõ lệnh Python.
+
+## Dùng với Claude Code (AI + skill + webhook)
+
+Cài một lần để dùng trong mọi project trên máy:
+
+```bash
+mkdir -p "$HOME/.claude/skills"
+git clone \
+  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
+  "$HOME/.claude/skills/infinity-ads-compliance-audit"
+```
+
+Hoặc chỉ cài trong một repository:
+
+```text
+partner-app/.claude/skills/infinity-ads-compliance-audit/
+```
+
+Sau đó mở Claude Code tại thư mục gốc Android project:
+
+```bash
+cd partner-app
+claude
+```
+
+Gọi skill bằng `/infinity-ads-compliance-audit`:
+
+```text
+/infinity-ads-compliance-audit
+
+Hãy kiểm tra project Android hiện tại. Tự tìm ADS SCRIPTS CSV và working-file CSV,
+không sửa source code, đọc các file báo cáo và gửi báo cáo đã làm sạch lên Discord webhook.
+Trả kết quả bằng tiếng Việt.
+```
+
+Claude Code đọc skill từ `.claude/skills/<skill-name>/SKILL.md` trong project hoặc `$HOME/.claude/skills/<skill-name>/SKILL.md` dùng chung cho user. Nếu cài skill khi Claude Code đang mở, hãy khởi động lại hoặc reload skill.
+
+Cả Codex và Claude đều cần Python 3.10 trở lên để chạy auditor. `npx` chỉ là phương án chạy bằng Terminal, không phải AI runtime.
 
 ## Chạy auditor Python trực tiếp (tùy chọn)
 
 Tại thư mục gốc repository của đối tác:
 
 ```bash
-python3 .agents/skills/infinity-ads-compliance-audit/scripts/run_audit.py \
+python3 "/duong-dan/infinity-ads-compliance-audit/scripts/run_audit.py" \
   --project . \
   --ads-script "/duong-dan/ADS SCRIPTS.csv" \
   --working-file "/duong-dan/working file.csv"
@@ -131,7 +182,7 @@ Dùng `--no-webhook` nếu Infinity yêu cầu lần kiểm tra đó chỉ tạo
 ## Ghi đè webhook (chỉ khi được Infinity duyệt)
 
 ```bash
-python3 .agents/skills/infinity-ads-compliance-audit/scripts/run_audit.py \
+python3 "/duong-dan/infinity-ads-compliance-audit/scripts/run_audit.py" \
   --project . --ads-script "/duong-dan/ADS SCRIPTS.csv" \
   --working-file "/duong-dan/working file.csv" \
   --webhook-url "https://your-endpoint.example/audits"
@@ -149,6 +200,11 @@ Mỗi app được phép có key khác base vì `ADS SCRIPTS.csv` là chuẩn ID
 
 Splash, Language, Onboarding, Home và Welcome là các màn chính của luồng ads. Chúng phải là `Activity` riêng theo base Infinity. Nếu app dùng một `Activity` và nhiều `Fragment` cho các màn này, skill báo lỗi yêu cầu dev chuyển các màn đó sang `Activity`. Fragment nhỏ chỉ để hiển thị UI trong một màn Activity không bị báo lỗi.
 
-## Dùng với Codex
+## Tóm tắt cách gọi AI
 
-Gõ: `Use $infinity-ads-compliance-audit to audit this Android project with the supplied ADS SCRIPTS and working-file CSVs.`
+| Công cụ | Thư mục cài | Cách gọi |
+| --- | --- | --- |
+| Codex CLI | `$HOME/.agents/skills/` hoặc `.agents/skills/` | `$infinity-ads-compliance-audit` |
+| Claude Code | `$HOME/.claude/skills/` hoặc `.claude/skills/` | `/infinity-ads-compliance-audit` |
+
+AI host sẽ chạy auditor local rồi giải thích evidence. Bản thân auditor là Python code chạy theo rule cố định; `npx` không phải AI runtime.
