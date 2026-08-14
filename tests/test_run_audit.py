@@ -261,6 +261,84 @@ class AdsAuditTest(unittest.TestCase):
         self.assertEqual(contract.placements["inter_splash"].ad_unit_id, "ca-app-pub-123/555")
         self.assertEqual(contract.admob_app_id, "ca-app-pub-123~999")
 
+    def test_parses_google_sheet_working_file_content_and_detail_columns(self):
+        working = self.root / "google-sheet-working.csv"
+        working.write_text(
+            "Order,Content,Detail,PIC\n"
+            "1,App name,Partner Player,Alice\n"
+            "2,Package name,com.partner.player,Bob\n"
+            "3,Firebase,https://console.firebase.google.com/project/partner-player/overview,Carol\n",
+            encoding="utf-8",
+        )
+
+        checklist = parse_working_file(working)
+
+        self.assertEqual(checklist.app_name, "Partner Player")
+        self.assertEqual(checklist.package_name, "com.partner.player")
+        self.assertEqual(checklist.firebase_project, "partner-player")
+
+    def test_infers_unknown_working_headers_from_recognized_row_content(self):
+        working = self.root / "renamed-working.csv"
+        working.write_text(
+            "Exported partner checklist\n"
+            "Row,Column A,Column B,Owner\n"
+            "1,Application name,Partner Player,Alice\n"
+            "2,Bundle ID,com.partner.player,Bob\n"
+            "3,Firebase project,https://console.firebase.google.com/project/partner-player/overview,Carol\n",
+            encoding="utf-8",
+        )
+
+        checklist = parse_working_file(working)
+
+        self.assertEqual(checklist.app_name, "Partner Player")
+        self.assertEqual(checklist.package_name, "com.partner.player")
+        self.assertEqual(checklist.firebase_project, "partner-player")
+
+    def test_parses_reordered_ads_sheet_with_partner_aliases(self):
+        partner_csv = self.root / "partner-alias-ads.csv"
+        partner_csv.write_text(
+            "Notes,Unit Code,Format,Ads Key,Sequence\n"
+            "Splash,ca-app-pub-123/555,interstitial,inter_splash,1\n"
+            "Home,ca-app-pub-123/666,native,native_home,2\n"
+            "Application,ca-app-pub-123~999,app,APP ID,3\n",
+            encoding="utf-8",
+        )
+
+        contract = parse_ads_script(partner_csv)
+
+        self.assertEqual(contract.placements["inter_splash"].ad_unit_id, "ca-app-pub-123/555")
+        self.assertEqual(contract.placements["native_home"].ad_type, "native")
+        self.assertEqual(contract.admob_app_id, "ca-app-pub-123~999")
+
+    def test_infers_ads_columns_when_all_headers_are_unknown(self):
+        partner_csv = self.root / "partner-inferred-ads.csv"
+        partner_csv.write_text(
+            "Column A,Column B,Column C,Column D,Column E\n"
+            "Splash,ca-app-pub-123/555,interstitial,inter_splash,1\n"
+            "Home,ca-app-pub-123/666,native,native_home,2\n"
+            "Application,ca-app-pub-123~999,app,APP ID,3\n",
+            encoding="utf-8",
+        )
+
+        contract = parse_ads_script(partner_csv)
+
+        self.assertEqual(contract.placements["inter_splash"].ad_unit_id, "ca-app-pub-123/555")
+        self.assertEqual(contract.placements["native_home"].ad_type, "native")
+        self.assertEqual(contract.admob_app_id, "ca-app-pub-123~999")
+
+    def test_rejects_ambiguous_working_value_columns_with_header_diagnostics(self):
+        working = self.root / "ambiguous-working.csv"
+        working.write_text(
+            "Alpha,Beta,Gamma\n"
+            "App name,Primary Player,Backup Player\n"
+            "Package name,com.primary.player,com.backup.player\n"
+            "Firebase,https://console.firebase.google.com/project/primary/overview,https://console.firebase.google.com/project/backup/overview\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(ValueError, "Alpha.*Beta.*Gamma"):
+            parse_working_file(working)
+
     def test_redacts_secret_values_and_payload_never_contains_them(self):
         redacted = redact_value("facebook-client-secret")
         payload = build_webhook_payload(

@@ -55,6 +55,70 @@ _HEADER_ALIASES = {
     "Document": {"document", "doc", "link", "tailieu"},
 }
 
+_KIND_HEADER_ALIASES = {
+    "ads": {
+        "id": {"unitcode", "adcode", "adsid", "adunitcode", "macode", "madonvi"},
+        "name": {"adskey", "adkey", "configkey", "placementkey", "adplacement", "keyquangcao"},
+        "Ads type": {"adcategory", "adscategory", "category", "loaiformat"},
+        "Mô tả": {"notes", "details", "content", "noidung"},
+    },
+    "working": {
+        "Task Detail": {
+            "content",
+            "taskcontent",
+            "item",
+            "field",
+            "key",
+            "noidung",
+            "hangmuc",
+            "truongthongtin",
+        },
+        "Document": {
+            "detail",
+            "details",
+            "value",
+            "data",
+            "result",
+            "chitiet",
+            "giatri",
+            "dulieu",
+        },
+    },
+}
+
+_WORKING_KEY_ALIASES = {
+    "App name": {"appname", "applicationname", "applicationtitle", "apptitle", "tenapp", "tenungdung"},
+    "Package name": {
+        "packagename",
+        "package",
+        "packageid",
+        "applicationid",
+        "bundleid",
+        "bundleidentifier",
+        "tenpackage",
+    },
+    "Firebase": {"firebase", "firebaseproject", "firebaseurl", "projectfirebase", "duanfirebase"},
+    "Adjust token": {"adjusttoken", "adjustapptoken"},
+    "Facebook App ID": {"facebookappid", "fbappid"},
+    "Facebook Client token": {"facebookclienttoken", "fbclienttoken"},
+    "Tiktok token": {"tiktoktoken", "tiktokapptoken"},
+}
+
+_KNOWN_AD_TYPES = {
+    "app",
+    "appopen",
+    "banner",
+    "collapsiblebanner",
+    "inter",
+    "interstitial",
+    "mrec",
+    "native",
+    "open",
+    "reward",
+    "rewarded",
+    "rewardedinterstitial",
+}
+
 
 @dataclass(frozen=True)
 class Placement:
@@ -155,23 +219,24 @@ def _read_table(path: Path) -> tuple[str, list[list[str]]]:
     return delimiter, list(csv.reader(io.StringIO(text), delimiter=delimiter))
 
 
-def _semantic_header(value: str | None) -> str | None:
+def _semantic_header(value: str | None, kind: str | None = None) -> str | None:
     normalized = _normalize_header(value)
+    if kind:
+        for semantic, aliases in _KIND_HEADER_ALIASES[kind].items():
+            if normalized in aliases:
+                return semantic
     for semantic, aliases in _HEADER_ALIASES.items():
         if normalized in aliases:
             return semantic
     return None
 
 
-def _find_header_row(rows: list[list[str]], required: tuple[str, ...]) -> int:
-    for index, row in enumerate(rows[:50]):
-        semantics = {_semantic_header(value) for value in row}
-        if all(field in semantics for field in required):
-            return index
-    for index, row in enumerate(rows):
-        if any(value.strip() for value in row):
-            return index
-    return 0
+def _canonical_working_key(value: str | None) -> str | None:
+    normalized = _normalize_header(value)
+    for canonical, aliases in _WORKING_KEY_ALIASES.items():
+        if normalized in aliases:
+            return canonical
+    return None
 
 
 def _looks_like_ad_unit_id(value: str) -> bool:
@@ -185,12 +250,12 @@ def _looks_like_ad_unit_id(value: str) -> bool:
 
 
 def _infer_id_column(headers: list[str], data_rows: list[list[str]]) -> int | None:
-    if any(_semantic_header(header) == "id" for header in headers):
+    if any(_semantic_header(header, "ads") == "id" for header in headers):
         return None
 
     candidates: list[tuple[float, int]] = []
     for column_index, header in enumerate(headers):
-        if _semantic_header(header) is not None:
+        if _semantic_header(header, "ads") is not None:
             continue
         values = [row[column_index].strip() for row in data_rows if column_index < len(row) and row[column_index].strip()]
         if not values:
@@ -210,10 +275,101 @@ def _infer_id_column(headers: list[str], data_rows: list[list[str]]) -> int | No
     return candidates[0][1]
 
 
+def _unique_best_column(scores: list[tuple[float, int]], minimum: float) -> int | None:
+    eligible = [(score, index) for score, index in scores if score >= minimum]
+    if not eligible:
+        return None
+    eligible.sort(reverse=True)
+    if len(eligible) > 1 and abs(eligible[0][0] - eligible[1][0]) < 0.001:
+        return None
+    return eligible[0][1]
+
+
+def _working_value_score(key: str, value: str) -> float:
+    value = value.strip()
+    if not value:
+        return 0
+    score = 1.0
+    if key == "Package name" and re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*){1,}", value):
+        score += 5
+    elif key == "Firebase" and ("firebase" in value.casefold() or "/project/" in value):
+        score += 5
+    elif key == "App name" and not _looks_like_ad_unit_id(value) and "://" not in value:
+        score += 1
+    elif key in SECRET_LABELS | {"Facebook App ID"} and len(value) >= 6:
+        score += 1
+    return score
+
+
+def _infer_working_columns(canonical: list[str], data_rows: list[list[str]]) -> None:
+    key_index = canonical.index("Task Detail") if "Task Detail" in canonical else None
+    if key_index is None:
+        key_scores = []
+        for index in range(len(canonical)):
+            count = sum(
+                _canonical_working_key(row[index]) is not None
+                for row in data_rows
+                if index < len(row) and row[index].strip()
+            )
+            key_scores.append((float(count), index))
+        key_index = _unique_best_column(key_scores, minimum=2)
+        if key_index is not None:
+            canonical[key_index] = "Task Detail"
+
+    if key_index is None or "Document" in canonical:
+        return
+    value_scores: list[tuple[float, int]] = []
+    for index in range(len(canonical)):
+        if index == key_index or canonical[index] in {"Task Detail", "Document"}:
+            continue
+        score = 0.0
+        for row in data_rows:
+            if key_index >= len(row) or index >= len(row):
+                continue
+            key = _canonical_working_key(row[key_index])
+            if key:
+                score += _working_value_score(key, row[index])
+        value_scores.append((score, index))
+    value_index = _unique_best_column(value_scores, minimum=2)
+    if value_index is not None:
+        canonical[value_index] = "Document"
+
+
+def _looks_like_ad_type(value: str) -> bool:
+    return _normalize_header(value) in _KNOWN_AD_TYPES
+
+
+def _looks_like_placement_name(value: str) -> bool:
+    value = value.strip()
+    if value.upper() == "APP ID":
+        return True
+    lowered = value.casefold()
+    return bool(re.fullmatch(r"[a-z][a-z0-9_.-]+", lowered)) and (
+        "_" in lowered or lowered.startswith(("banner", "inter", "native", "open", "reward"))
+    )
+
+
+def _infer_ads_column(canonical: list[str], data_rows: list[list[str]], semantic: str, predicate: Any) -> None:
+    if semantic in canonical:
+        return
+    scores: list[tuple[float, int]] = []
+    for index in range(len(canonical)):
+        if canonical[index] in {"id", "name", "Ads type", "Mô tả"}:
+            continue
+        values = [row[index].strip() for row in data_rows if index < len(row) and row[index].strip()]
+        if not values:
+            continue
+        ratio = sum(bool(predicate(value)) for value in values) / len(values)
+        scores.append((ratio, index))
+    inferred = _unique_best_column(scores, minimum=0.6)
+    if inferred is not None:
+        canonical[inferred] = semantic
+
+
 def _canonical_headers(headers: list[str], data_rows: list[list[str]], kind: str) -> list[str]:
     canonical: list[str] = []
     for index, header in enumerate(headers):
-        semantic = _semantic_header(header)
+        semantic = _semantic_header(header, kind)
         if semantic is not None:
             canonical.append(semantic if semantic not in canonical else f"{semantic}_{index}")
         else:
@@ -223,19 +379,49 @@ def _canonical_headers(headers: list[str], data_rows: list[list[str]], kind: str
     if kind == "ads":
         inferred_index = _infer_id_column(headers, data_rows)
         if inferred_index is not None:
-            canonical[inferred_index] = "ID"
+            canonical[inferred_index] = "id"
+        _infer_ads_column(canonical, data_rows, "Ads type", _looks_like_ad_type)
+        _infer_ads_column(canonical, data_rows, "name", _looks_like_placement_name)
+    else:
+        _infer_working_columns(canonical, data_rows)
     return canonical
 
 
+def _required_headers(kind: str) -> tuple[str, ...]:
+    return ("name", "Ads type", "id") if kind == "ads" else ("Task Detail", "Document")
+
+
+def _find_header_mapping(rows: list[list[str]], kind: str) -> tuple[int, list[str]] | None:
+    required = _required_headers(kind)
+    for index, row in enumerate(rows[:50]):
+        semantics = {_semantic_header(value, kind) for value in row}
+        if all(field in semantics for field in required):
+            return index, _canonical_headers(row, rows[index + 1 :], kind)
+    for index, row in enumerate(rows[:50]):
+        if sum(bool(value.strip()) for value in row) < 2:
+            continue
+        canonical = _canonical_headers(row, rows[index + 1 :], kind)
+        if all(field in canonical for field in required):
+            return index, canonical
+    return None
+
+
 def _rows(path: Path, kind: str) -> Iterable[tuple[int, dict[str, str]]]:
-    _, rows = _read_table(path)
-    required = ("name", "Ads type") if kind == "ads" else ("Task Detail", "Document")
-    header_index = _find_header_row(rows, required)
-    if not rows or header_index >= len(rows):
+    delimiter, rows = _read_table(path)
+    if not rows:
         return
-    headers = rows[header_index]
+    mapping = _find_header_mapping(rows, kind)
+    if mapping is None:
+        nonempty = [row for row in rows[:50] if any(value.strip() for value in row)]
+        headers = max(nonempty, key=lambda row: sum(bool(value.strip()) for value in row), default=[])
+        displayed = ", ".join(header.strip() or "<unnamed>" for header in headers) or "<none>"
+        required = ", ".join(_required_headers(kind))
+        raise ValueError(
+            f"Could not map required {kind} CSV columns in {path}. "
+            f"Detected delimiter {delimiter!r} and headers: {displayed}. Required semantics: {required}."
+        )
+    header_index, canonical = mapping
     data_rows = rows[header_index + 1 :]
-    canonical = _canonical_headers(headers, data_rows, kind)
     for row_number, values in enumerate(data_rows, start=header_index + 2):
         if not any(value.strip() for value in values):
             continue
@@ -246,8 +432,8 @@ def _rows(path: Path, kind: str) -> Iterable[tuple[int, dict[str, str]]]:
 def _layout_hint(path: Path, kind: str) -> str:
     try:
         delimiter, rows = _read_table(path)
-        required = ("name", "Ads type") if kind == "ads" else ("Task Detail", "Document")
-        header_index = _find_header_row(rows, required)
+        mapping = _find_header_mapping(rows, kind)
+        header_index = mapping[0] if mapping else 0
         headers = rows[header_index] if rows and header_index < len(rows) else []
         displayed = ", ".join(header.strip() or "<unnamed>" for header in headers)
         return f" Detected delimiter {delimiter!r} and headers: {displayed or '<none>'}."
@@ -283,7 +469,7 @@ def parse_working_file(path: str | Path) -> ProjectChecklist:
         key = _value(row, "Task Detail")
         value = _value(row, "Document")
         if key and value:
-            values[key] = value
+            values[_canonical_working_key(key) or key] = value
     return ProjectChecklist(
         app_name=values.get("App name"),
         package_name=values.get("Package name"),
