@@ -1340,30 +1340,30 @@ def render_summary(report: AuditReport) -> str:
         "",
         "## Summary",
         "",
-        f"- FAIL: {counts.get('fail', 0)}",
-        f"- NEEDS_MAPPING: {counts.get('needs_mapping', 0)}",
-        f"- NEEDS_RUNTIME_PROOF: {counts.get('needs_runtime_proof', 0)}",
-        f"- PASS: {counts.get('pass', 0)}",
+        f"- ❌ FAIL: {counts.get('fail', 0)}",
+        f"- ⚠️ NEEDS_MAPPING: {counts.get('needs_mapping', 0)}",
+        f"- 🔍 NEEDS_RUNTIME_PROOF: {counts.get('needs_runtime_proof', 0)}",
+        f"- ✅ PASS: {counts.get('pass', 0)}",
         "",
         "## MKT short report",
         "",
         f"- Kết quả: {payload['ket_qua']}",
         f"- App: {payload['ten_app']}",
         f"- Package: `{payload['package_name']}`",
-        f"- Tổng: {payload['tong_quan']['loi_can_sua']} lỗi | {payload['tong_quan']['can_ky_thuat_xac_nhan']} cần xác nhận | {payload['tong_quan']['muc_da_kiem_tra_dung']} đạt",
+        f"- Tổng: ❌ {payload['tong_quan']['loi_can_sua']} lỗi | ⚠️ {payload['tong_quan']['can_ky_thuat_xac_nhan']} cần xác nhận | ✅ {payload['tong_quan']['muc_da_kiem_tra_dung']} đạt",
         "",
     ]
     if payload["loi"]:
-        lines.extend(["### Lỗi cần sửa", ""])
+        lines.extend(["### ❌ Lỗi cần sửa", ""])
         for index, error in enumerate(payload["loi"], start=1):
-            lines.append(f"**{index}. {error['tieu_de']}**")
+            lines.append(f"❌ **{index}. {error['tieu_de']}**")
             lines.append("**Mô tả:**")
             lines.append(error["mo_ta"])
             lines.append("**Cách sửa:**")
             lines.append(error["can_lam"])
         lines.append("")
     if payload["can_xac_nhan"]:
-        lines.extend(["### Cần xác nhận", ""])
+        lines.extend(["### ⚠️ Cần xác nhận", ""])
         lines.extend(f"{index}. {item}" for index, item in enumerate(payload["can_xac_nhan"], start=1))
         lines.append("")
     lines.extend([
@@ -1379,7 +1379,7 @@ def render_summary(report: AuditReport) -> str:
         if group_actions:
             names = ", ".join(finding.rule_id.split(":", 1)[1] for finding in group_actions)
             lines.extend([
-                f"### FAIL — `{group}` ({len(group_actions)} placements)",
+                f"### ❌ FAIL — `{group}` ({len(group_actions)} placements)",
                 f"Keys with missing/mismatched IDs: {names}",
                 "Fix: align every listed key and ID with ADS SCRIPTS; see `ads-audit-evidence.json` for exact expected/observed IDs.",
                 "",
@@ -1387,9 +1387,10 @@ def render_summary(report: AuditReport) -> str:
     for finding in actions:
         if finding in config_actions:
             continue
+        status_icon = "❌" if finding.status == "FAIL" else "⚠️" if finding.status == "NEEDS_MAPPING" else "🔍"
         location = f" ({finding.location})" if finding.location else ""
         lines.extend([
-            f"### {finding.status} — `{finding.rule_id}`{location}",
+            f"### {status_icon} {finding.status} — `{finding.rule_id}`{location}",
             f"Expected: {finding.expected}",
             f"Observed: {finding.observed}",
             f"Fix: {finding.recommendation}",
