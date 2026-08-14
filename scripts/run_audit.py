@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -13,19 +14,62 @@ from ads_audit_lib import Finding, build_webhook_payload, inspect_project, parse
 
 
 DEFAULT_WEBHOOK_URL = "https://discord.com/api/webhooks/1536937706842755122/SCT5zl1HOoRGL2D2EbOFKmttUN4lCCOTs8PRo9fyoe4sjliFNJEBq76QE-8XkmnLSmCO"
+CSV_SKIP_DIRS = {".git", ".gradle", ".idea", ".agents", ".codex", "ads-audit-output", "build", "node_modules", "out"}
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Audit an Android partner ads integration against Infinity CSV contracts.")
     parser.add_argument("--project", default=".", help="Android project root (default: current directory)")
-    parser.add_argument("--ads-script", required=True, help="Path to the project ADS SCRIPTS CSV")
-    parser.add_argument("--working-file", required=True, help="Path to the project working-file CSV")
+    parser.add_argument("--ads-script", help="Path to the project ADS SCRIPTS CSV (auto-discovered when omitted)")
+    parser.add_argument("--working-file", help="Path to the project working-file CSV (auto-discovered when omitted)")
     parser.add_argument("--output-dir", default="ads-audit-output", help="Directory for report files")
     parser.add_argument("--overrides", help="Optional approved ads-audit-overrides.yaml path")
     parser.add_argument("--webhook-url", help="Override the embedded HTTPS endpoint for a sanitized JSON report")
     parser.add_argument("--webhook-token", help="Optional bearer token; never written to output")
     parser.add_argument("--no-webhook", action="store_true", help="Create local reports only; do not send a webhook")
     return parser
+
+
+def _normalized_filename(path: Path) -> str:
+    return re.sub(r"[^a-z0-9]+", "", path.name.casefold())
+
+
+def discover_csv(project: Path, kind: str) -> Path:
+    project = project.resolve()
+    matches: list[Path] = []
+    for candidate in project.rglob("*.csv"):
+        relative = candidate.relative_to(project)
+        if any(part in CSV_SKIP_DIRS for part in relative.parts):
+            continue
+        normalized = _normalized_filename(candidate)
+        matched = "adsscripts" in normalized if kind == "ads" else "working" in normalized or "workfile" in normalized
+        if matched:
+            matches.append(candidate.resolve())
+    matches.sort()
+    flag = "--ads-script" if kind == "ads" else "--working-file"
+    label = "ADS SCRIPTS" if kind == "ads" else "working-file"
+    if not matches:
+        raise ValueError(f"Could not find a {label} CSV under {project}. Pass {flag} explicitly.")
+    if len(matches) > 1:
+        listed = "\n".join(f"  - {candidate.relative_to(project)}" for candidate in matches)
+        raise ValueError(f"Found multiple {label} CSV files. Pass {flag} explicitly:\n{listed}")
+    return matches[0]
+
+
+def resolve_csv_input(project: Path, supplied: str | None, kind: str) -> Path:
+    if supplied is None:
+        return discover_csv(project, kind)
+    if not supplied.strip():
+        flag = "--ads-script" if kind == "ads" else "--working-file"
+        raise ValueError(f"{flag} cannot be empty.")
+    candidate = Path(supplied).expanduser()
+    if not candidate.is_absolute():
+        candidate = project / candidate
+    candidate = candidate.resolve()
+    if not candidate.is_file():
+        flag = "--ads-script" if kind == "ads" else "--working-file"
+        raise ValueError(f"File supplied to {flag} was not found: {candidate}")
+    return candidate
 
 
 def post_webhook(url: str, token: str | None, payload: dict, attachment_path: Path | None = None) -> str | None:
@@ -158,7 +202,9 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
-        report = inspect_project(project, parse_ads_script(args.ads_script), parse_working_file(args.working_file), args.overrides)
+        ads_script = resolve_csv_input(project, args.ads_script, "ads")
+        working_file = resolve_csv_input(project, args.working_file, "working")
+        report = inspect_project(project, parse_ads_script(ads_script), parse_working_file(working_file), args.overrides)
     except (OSError, ValueError, json.JSONDecodeError) as error:
         print(f"Audit setup error: {error}", file=sys.stderr)
         return 1

@@ -1,4 +1,5 @@
 import json
+import io
 import subprocess
 import sys
 import tempfile
@@ -380,6 +381,51 @@ class AdsAuditTest(unittest.TestCase):
         evidence = (output_dir / "ads-audit-evidence.json").read_text(encoding="utf-8")
         self.assertNotIn("facebook-client-secret", evidence)
 
+    def test_python_cli_auto_discovers_csv_inputs(self):
+        self.write_project()
+        config_dir = self.root / "partner-config"
+        config_dir.mkdir()
+        discovered_ads = config_dir / "Partner ADS SCRIPTS.csv"
+        discovered_ads.write_text(self.ads_csv.read_text(encoding="utf-8"), encoding="utf-8")
+        output_dir = self.root / "auto-audit-output"
+
+        result = run_audit.main([
+            "--project", str(self.root),
+            "--output-dir", str(output_dir),
+            "--no-webhook",
+        ])
+
+        self.assertEqual(result, 2)
+        self.assertTrue((output_dir / "ads-audit-summary.md").is_file())
+
+    def test_python_cli_rejects_ambiguous_csv_discovery(self):
+        first = self.root / "First ADS SCRIPTS.csv"
+        second = self.root / "Second ADS SCRIPTS.csv"
+        first.write_text(self.ads_csv.read_text(encoding="utf-8"), encoding="utf-8")
+        second.write_text(self.ads_csv.read_text(encoding="utf-8"), encoding="utf-8")
+        stderr = io.StringIO()
+
+        with patch("sys.stderr", stderr):
+            result = run_audit.main([
+                "--project", str(self.root),
+                "--working-file", str(self.working_csv),
+                "--output-dir", str(self.root / "audit-output"),
+                "--no-webhook",
+            ])
+
+        self.assertEqual(result, 1)
+        self.assertIn("--ads-script", stderr.getvalue())
+        self.assertIn(first.name, stderr.getvalue())
+        self.assertIn(second.name, stderr.getvalue())
+
+    def test_python_cli_explicit_csv_path_overrides_discovery(self):
+        duplicate = self.root / "Duplicate ADS SCRIPTS.csv"
+        duplicate.write_text(self.ads_csv.read_text(encoding="utf-8"), encoding="utf-8")
+
+        resolved = run_audit.resolve_csv_input(self.root, str(self.ads_csv), "ads")
+
+        self.assertEqual(resolved, self.ads_csv.resolve())
+
     def test_cli_posts_to_embedded_webhook_by_default(self):
         self.write_project()
         output_dir = self.root / "audit-output"
@@ -395,7 +441,10 @@ class AdsAuditTest(unittest.TestCase):
         self.assertGreaterEqual(post.call_count, 1)
         self.assertEqual(post.call_args_list[0].args[0], run_audit.DEFAULT_WEBHOOK_URL)
         discord_body = post.call_args_list[0].args[2]
-        self.assertEqual(post.call_args_list[0].kwargs["attachment_path"], output_dir / "ads-audit-summary.md")
+        self.assertEqual(
+            post.call_args_list[0].kwargs["attachment_path"].resolve(),
+            (output_dir / "ads-audit-summary.md").resolve(),
+        )
         for call in post.call_args_list[1:]:
             self.assertIsNone(call.kwargs["attachment_path"])
         self.assertIn("content", discord_body)
