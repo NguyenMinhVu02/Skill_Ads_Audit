@@ -68,7 +68,7 @@ The zip excludes `__pycache__`, `.pyc`, and `ads-audit-output/` so the partner r
 
 ## Automatic Discord webhook
 
-The bundled skill sends a short MKT report only when `--webhook-url` is passed, unless `--no-webhook` is passed. It includes app name, package name, counts, short errors, and items requiring technical confirmation. It also attaches `ads-audit-summary.md` so developers can open the full local report from Discord.
+The bundled skill sends a short MKT report to its embedded Discord webhook after each audit unless `--no-webhook` is passed. It includes app name, package name, counts, short errors, and items requiring technical confirmation. It also attaches `ads-audit-summary.md` so developers can open the full local report from Discord. No webhook URL is needed when using the skill.
 
 Each Discord error is rendered as separate lines:
 

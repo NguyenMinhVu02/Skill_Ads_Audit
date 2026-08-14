@@ -299,7 +299,7 @@ class AdsAuditTest(unittest.TestCase):
         evidence = (output_dir / "ads-audit-evidence.json").read_text(encoding="utf-8")
         self.assertNotIn("facebook-client-secret", evidence)
 
-    def test_cli_does_not_post_without_explicit_webhook_url(self):
+    def test_cli_posts_to_embedded_webhook_by_default(self):
         self.write_project()
         output_dir = self.root / "audit-output"
         with patch.object(run_audit, "post_webhook", return_value=None) as post:
@@ -311,7 +311,16 @@ class AdsAuditTest(unittest.TestCase):
             ])
 
         self.assertEqual(result, 2)
-        self.assertEqual(post.call_count, 0)
+        self.assertGreaterEqual(post.call_count, 1)
+        self.assertEqual(post.call_args_list[0].args[0], run_audit.DEFAULT_WEBHOOK_URL)
+        discord_body = post.call_args_list[0].args[2]
+        self.assertEqual(post.call_args_list[0].kwargs["attachment_path"], output_dir / "ads-audit-summary.md")
+        for call in post.call_args_list[1:]:
+            self.assertIsNone(call.kwargs["attachment_path"])
+        self.assertIn("content", discord_body)
+        self.assertIn("Demo Player", discord_body["content"])
+        self.assertIn("com.example.player", discord_body["content"])
+        self.assertNotIn("adjust-secret", discord_body["content"])
 
     def test_cli_does_not_post_when_no_webhook_is_requested(self):
         self.write_project()

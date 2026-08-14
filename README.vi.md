@@ -70,7 +70,7 @@ File zip loại trừ `__pycache__`, `.pyc` và `ads-audit-output/` để đối
 
 ## Webhook Discord tự động
 
-Skill chỉ gửi webhook Discord khi truyền `--webhook-url`, trừ khi truyền `--no-webhook`. Báo cáo ngắn cho MKT gồm tên app, package name, số lỗi, lỗi cần sửa và mục cần kỹ thuật xác nhận. Skill cũng đính kèm file `ads-audit-summary.md` lên Discord để dev mở chi tiết ngay.
+Skill đã có sẵn webhook Discord. Sau mỗi lần audit, nếu không truyền `--no-webhook`, báo cáo ngắn cho MKT sẽ tự gửi gồm tên app, package name, số lỗi, lỗi cần sửa và mục cần kỹ thuật xác nhận. Skill cũng đính kèm file `ads-audit-summary.md` lên Discord để dev mở chi tiết ngay.
 
 Trong webhook, mỗi lỗi được tách dòng:
 

