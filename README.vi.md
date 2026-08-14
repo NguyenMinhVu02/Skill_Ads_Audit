@@ -15,7 +15,37 @@ Skill này kiểm tra app Android của đối tác theo đúng hai file riêng 
 - `BaseActivityWithBanner`: `BannerConfig`, `AdsManager.loadBanner`, purchase/config/container gate, `reloadIntervalSeconds`.
 - Các placement không map được thì trả `NEEDS_MAPPING`; các journey cần bấm/thời điểm runtime thì trả `NEEDS_RUNTIME_PROOF`.
 
-## Cài đặt
+## Cách dễ nhất cho đối tác: chạy bằng npx
+
+Mở Terminal tại thư mục gốc của Android project rồi chạy:
+
+```bash
+npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
+  --project . \
+  --no-webhook
+```
+
+CLI sẽ tự tìm đúng một file CSV có tên chứa `ADS SCRIPTS` và đúng một file có tên chứa `working` hoặc `work file`. Nếu không tìm thấy hoặc có nhiều file, CLI sẽ dừng và hướng dẫn truyền đường dẫn rõ ràng; không tự đoán file.
+
+Cần có:
+
+- Node.js 18 trở lên (có `npx`).
+- Python 3.10 trở lên.
+- Dự án Android và hai CSV riêng của app.
+
+Nếu có nhiều CSV trùng loại, truyền đường dẫn thủ công:
+
+```bash
+npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
+  --project . \
+  --ads-script "./config/ADS SCRIPTS.csv" \
+  --working-file "./config/working-file.csv" \
+  --no-webhook
+```
+
+Kết quả nằm trong `ads-audit-output/ads-audit-summary.md` và `ads-audit-output/ads-audit-evidence.json`. Lệnh chỉ đọc dự án Android, không tự sửa source. Dùng `--no-webhook` để chỉ tạo báo cáo local.
+
+## Cài skill cho Codex hoặc Claude Code
 
 Chép thư mục `infinity-ads-compliance-audit` vào repository của đối tác:
 
@@ -38,7 +68,7 @@ Trả về lỗi ngắn gọn bằng tiếng Việt cho MKT, gồm tên app, pac
 
 Codex sẽ tự chạy tool bên trong skill. Đối tác không cần dùng Terminal.
 
-## Chạy kiểm tra bằng lệnh (tùy chọn)
+## Chạy auditor Python trực tiếp (tùy chọn)
 
 Tại thư mục gốc repository của đối tác:
 

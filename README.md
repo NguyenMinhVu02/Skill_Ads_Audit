@@ -15,7 +15,37 @@ Audit an Android partner app against its own Infinity `ADS SCRIPTS` and working-
 - `BaseActivityWithBanner`: `BannerConfig`, `AdsManager.loadBanner`, purchase/config/container gates, and `reloadIntervalSeconds`.
 - Unmapped placements remain `NEEDS_MAPPING`; user-event/lifecycle cases that static analysis cannot prove remain `NEEDS_RUNTIME_PROOF`.
 
-## Install
+## Fastest partner workflow: run with npx
+
+From the root of the Android project, run:
+
+```bash
+npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
+  --project . \
+  --no-webhook
+```
+
+The CLI searches the project for exactly one CSV whose name contains `ADS SCRIPTS` and exactly one CSV whose name contains `working` or `work file`. It never guesses when there are zero or multiple matches.
+
+Requirements:
+
+- Node.js 18 or newer (provides `npx`).
+- Python 3.10 or newer.
+- The Android project and its two app-specific CSV files.
+
+If the CLI reports multiple CSV candidates, pass the files explicitly:
+
+```bash
+npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
+  --project . \
+  --ads-script "./config/ADS SCRIPTS.csv" \
+  --working-file "./config/working-file.csv" \
+  --no-webhook
+```
+
+Reports are written to `ads-audit-output/ads-audit-summary.md` and `ads-audit-output/ads-audit-evidence.json`. The command reads the Android project; it does not modify source code. Use `--no-webhook` for a local-only report.
+
+## Install as a Codex or Claude Code skill
 
 Copy the `infinity-ads-compliance-audit` folder into the partner repository:
 
@@ -38,7 +68,7 @@ Return a short Vietnamese MKT report with app name, package name, errors to fix,
 
 Codex runs the bundled auditor; the partner does not need to use a terminal.
 
-## Run by command (optional)
+## Run the Python auditor directly (optional)
 
 From the partner repository root:
 

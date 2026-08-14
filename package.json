@@ -1,0 +1,13 @@
+{
+  "name": "infinity-ads-compliance-audit",
+  "version": "1.0.0",
+  "private": false,
+  "description": "Run the Infinity Android ads compliance audit from npx",
+  "type": "module",
+  "bin": {
+    "infinity-ads-audit": "bin/infinity-ads-audit.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
