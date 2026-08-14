@@ -10,6 +10,7 @@ import re
 import unicodedata
 from collections import Counter
 from dataclasses import dataclass, field
+from html import unescape
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -901,10 +902,22 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
         report.findings.append(Finding.fail("ADMOB_MANIFEST_META", "identity", "AdMob APPLICATION_ID meta-data", "missing", "Add the Google Mobile Ads APPLICATION_ID meta-data entry to AndroidManifest.xml."))
     else:
         report.findings.append(Finding.pass_("ADMOB_MANIFEST_META", "identity", "AdMob APPLICATION_ID meta-data", "found"))
-    app_name = _first_match(r'<string\s+name=["\']app_name["\'][^>]*>([^<]+)', _combined_text([path for path in all_text_paths if path.name == "strings.xml"]))
+    string_paths = [path for path in all_text_paths if path.name == "strings.xml"]
+    # Android's default resource (`res/values`) is the app identity. Locale
+    # files may intentionally contain translated names and must not override
+    # the contract value merely because filesystem traversal lists them first.
+    string_paths.sort(key=lambda path: (path.parent.name != "values", str(path)))
+    app_name = None
+    for string_path in string_paths:
+        match = re.search(r'<string\s+name=["\']app_name["\'][^>]*>([^<]+)', _read(string_path), flags=re.MULTILINE)
+        if match:
+            app_name = unescape(match.group(1).strip())
+            break
     _check_equal(report, "APP_NAME", "identity", checklist.app_name, app_name, "Set `app_name` to the working checklist value.")
-    for config_name, label in (("ad_config.json", "RELEASE"), ("ad_config_debug.json", "DEBUG")):
-        _check_config(report, root, contract, config_name, label)
+    # The partner contract is the release configuration. Debug/test IDs are
+    # intentionally not compared with ADS SCRIPTS because they are expected to
+    # differ from production IDs.
+    _check_config(report, root, contract, "ad_config.json", "RELEASE")
     searchable = _combined_text(all_text_paths)
     for key, value in checklist.required_values.items():
         _check_equal(report, f"TOKEN:{key}", "token", value, value if value and value in searchable else None, f"Add the configured {key} using the approved Android resource/build configuration.", redact=key in SECRET_LABELS)
@@ -1151,25 +1164,29 @@ def _group_mkt_errors(findings: list[Finding]) -> list[dict[str, str]]:
         "ADMOB_APP_ID": "AdMob App ID",
         "ADMOB_MANIFEST_META": "AdMob App ID",
     }
-    app_fields = [app_field_names[finding.rule_id] for finding in findings if finding.status == "FAIL" and finding.rule_id in app_field_names]
+    app_findings = [finding for finding in findings if finding.status == "FAIL" and finding.rule_id in app_field_names]
+    app_fields = [app_field_names[finding.rule_id] for finding in app_findings]
     grouped: list[dict[str, str]] = []
     if app_fields:
+        details = "; ".join(
+            f"{app_field_names[finding.rule_id]}: expected `{finding.expected}`, observed `{finding.observed}`"
+            for finding in app_findings
+        )
         grouped.append({
             "tieu_de": "Thông tin app chưa khớp checklist",
-            "mo_ta": f"Sai hoặc thiếu: {_limited_list(app_fields, 'field')}.",
+            "mo_ta": f"Sai hoặc thiếu: {_limited_list(app_fields, 'field')}. {details}.",
             "can_lam": "Dev đối chiếu working file và cập nhật thông tin app.",
         })
-    for label, display_name in (("RELEASE", "Release"), ("DEBUG", "Debug")):
-        keys = [
-            key for finding in findings if finding.status == "FAIL"
-            for key in [_config_key(finding.rule_id, label)] if key
-        ]
-        if keys:
-            grouped.append({
-                "tieu_de": f"Cấu hình quảng cáo {display_name} chưa đúng",
-                "mo_ta": f"Key sai hoặc thiếu: {_limited_list(keys, 'key')}.",
-                "can_lam": "Dev cập nhật key và ID theo file ADS SCRIPTS.",
-            })
+    release_keys = [
+        key for finding in findings if finding.status == "FAIL"
+        for key in [_config_key(finding.rule_id, "RELEASE")] if key
+    ]
+    if release_keys:
+        grouped.append({
+            "tieu_de": "Cấu hình quảng cáo release (ad_config.json) chưa đúng",
+            "mo_ta": f"Key sai hoặc thiếu: {_limited_list(release_keys, 'key')}.",
+            "can_lam": "Dev cập nhật key và ID trong `ad_config.json` theo file ADS SCRIPTS.",
+        })
     if any(finding.status == "FAIL" and finding.category == "token" for finding in findings):
         grouped.append({
             "tieu_de": "Thiếu cấu hình dịch vụ cần thiết",
@@ -1318,7 +1335,7 @@ def render_summary(report: AuditReport) -> str:
     if not actions:
         lines.append("No static-rule failures. Complete all runtime proof cases before release approval.")
     config_actions = [finding for finding in actions if finding.rule_id.startswith("AD_CONFIG_")]
-    for group in ("AD_CONFIG_RELEASE", "AD_CONFIG_DEBUG"):
+    for group in ("AD_CONFIG_RELEASE",):
         group_actions = [finding for finding in config_actions if finding.rule_id.startswith(group + ":") and ":ENABLE:" not in finding.rule_id]
         if group_actions:
             names = ", ".join(finding.rule_id.split(":", 1)[1] for finding in group_actions)

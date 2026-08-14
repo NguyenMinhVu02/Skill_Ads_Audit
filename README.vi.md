@@ -4,8 +4,8 @@ Skill này kiểm tra app Android của đối tác theo đúng hai file riêng 
 
 ## Phạm vi kiểm tra hiện tại
 
-- Thông tin app: package, app name, AdMob App ID, Firebase project, token/service trong working file.
-- Config quảng cáo: mọi key/ID trong CSV phải có trong `ad_config.json` và `ad_config_debug.json`, đúng ID và có `isEnable`.
+- Thông tin app: package, app name, AdMob App ID, Firebase project, token/service trong working file. Tên app được lấy từ `res/values/strings.xml` mặc định; các file dịch theo locale không ghi đè giá trị này.
+- Config quảng cáo: mọi key/ID trong CSV chỉ được đối chiếu với `ad_config.json` (release), phải đúng tuyệt đối và có `isEnable`. ID debug/test trong `ad_config_debug.json` được phép khác production và không bị báo lỗi contract.
 - `GlobalApp`: thứ tự `MobileAds.initialize` → `DevConfig.init` → `AdRemoteConfig.initializeFromAssets` → `ERainAd.init`; đủ `BuildConfig` version fields; đủ Adjust/Facebook/TikTok/interval/resume id; AppOpen exclusions; lifecycle observer.
 - `SplashActivity`: consent/RemoteConfig, apply `AdRemoteConfig` từ `RemoteConfigUtils`, load/show `inter_splash`, preload native language trong `onAdLoaded`, navigate trong `onNextAction`, setup `open_resume`.
 - `LanguageActivity`: DevSetting trên `tvTitle`, delay 100ms, native language/click, preload onboarding page 1, observe/render/hide native ads.

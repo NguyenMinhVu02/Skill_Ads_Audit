@@ -286,7 +286,57 @@ class AdsAuditTest(unittest.TestCase):
         report = inspect_project(self.root, parse_ads_script(self.ads_csv), parse_working_file(self.working_csv))
 
         self.assertEqual(report.finding("AD_CONFIG_RELEASE:native_home").status, "FAIL")
-        self.assertEqual(report.finding("AD_CONFIG_DEBUG:native_home").status, "FAIL")
+        self.assertFalse(any(finding.rule_id.startswith("AD_CONFIG_DEBUG:") for finding in report.findings))
+
+    def test_ignores_debug_config_id_difference(self):
+        self.write_project()
+        debug_path = self.root / "app/src/main/assets/ad_config_debug.json"
+        debug_config = json.loads(debug_path.read_text(encoding="utf-8"))
+        debug_config["native_home"]["id"] = "ca-app-pub-test/debug-only"
+        debug_path.write_text(json.dumps(debug_config), encoding="utf-8")
+
+        report = inspect_project(self.root, parse_ads_script(self.ads_csv), parse_working_file(self.working_csv))
+
+        self.assertEqual(report.finding("AD_CONFIG_RELEASE:native_home").status, "PASS")
+        self.assertFalse(any(finding.rule_id.startswith("AD_CONFIG_DEBUG:") for finding in report.findings))
+
+    def test_uses_default_locale_app_name_instead_of_localized_translation(self):
+        localized_dir = self.root / "app/src/main/res/values-vi"
+        localized_dir.mkdir(parents=True)
+        (localized_dir / "strings.xml").write_text(
+            '<resources><string name="app_name">IPTV Smart Player</string></resources>',
+            encoding="utf-8",
+        )
+        self.write_project()
+        self.working_csv.write_text(
+            self.working_csv.read_text(encoding="utf-8").replace("Demo Player", "Demo & Player"),
+            encoding="utf-8",
+        )
+        (self.root / "app/src/main/res/values/strings.xml").write_text(
+            '<resources><string name="app_name">Demo &amp; Player</string></resources>',
+            encoding="utf-8",
+        )
+
+        report = inspect_project(self.root, parse_ads_script(self.ads_csv), parse_working_file(self.working_csv))
+
+        self.assertEqual(report.finding("APP_NAME").status, "PASS")
+
+    def test_webhook_identity_error_includes_expected_and_observed_values(self):
+        checklist = parse_working_file(self.working_csv)
+        payload = build_webhook_payload(
+            "repo-folder",
+            checklist,
+            [
+                Finding.fail("APP_NAME", "identity", "Demo Player", "Actual Player", "fix"),
+                Finding.fail("APP_PACKAGE", "identity", "com.expected.player", "com.actual.player", "fix"),
+            ],
+        )
+
+        description = payload["loi"][0]["mo_ta"]
+        self.assertIn("expected `Demo Player`", description)
+        self.assertIn("observed `Actual Player`", description)
+        self.assertIn("expected `com.expected.player`", description)
+        self.assertIn("observed `com.actual.player`", description)
 
     def test_marks_unmapped_placement_location_without_claiming_pass(self):
         self.write_project()
@@ -539,7 +589,7 @@ class AdsAuditTest(unittest.TestCase):
             Finding.fail("ADMOB_APP_ID", "identity", "expected", "wrong", "fix"),
         ]
         findings.extend(
-            Finding.fail(f"AD_CONFIG_DEBUG:placement_{index}", "ad_config", "ad-unit-secret", "wrong", "fix")
+            Finding.fail(f"AD_CONFIG_RELEASE:placement_{index}", "ad_config", "ad-unit-secret", "wrong", "fix")
             for index in range(25)
         )
         findings.extend([
@@ -553,15 +603,15 @@ class AdsAuditTest(unittest.TestCase):
         payload = build_webhook_payload("repo", checklist, findings)
         entries = payload["loi"]
         app_info = [entry for entry in entries if entry["tieu_de"] == "Thông tin app chưa khớp checklist"]
-        debug_config = [entry for entry in entries if entry["tieu_de"] == "Cấu hình quảng cáo Debug chưa đúng"]
+        release_config = [entry for entry in entries if entry["tieu_de"] == "Cấu hình quảng cáo release (ad_config.json) chưa đúng"]
 
         self.assertEqual(len(app_info), 1)
         self.assertIn("app_name", app_info[0]["mo_ta"])
         self.assertIn("package_name", app_info[0]["mo_ta"])
         self.assertIn("AdMob App ID", app_info[0]["mo_ta"])
-        self.assertEqual(len(debug_config), 1)
-        self.assertIn("placement_0", debug_config[0]["mo_ta"])
-        self.assertIn("và 15 key khác", debug_config[0]["mo_ta"])
+        self.assertEqual(len(release_config), 1)
+        self.assertIn("placement_0", release_config[0]["mo_ta"])
+        self.assertIn("và 15 key khác", release_config[0]["mo_ta"])
         self.assertEqual(len(entries), len({(entry["tieu_de"], entry["mo_ta"], entry["can_lam"]) for entry in entries}))
         self.assertEqual(payload["tong_quan"]["loi_can_sua"], 29)
         self.assertEqual(payload["tong_quan"]["can_ky_thuat_xac_nhan"], 4)

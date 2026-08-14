@@ -4,8 +4,8 @@ Audit an Android partner app against its own Infinity `ADS SCRIPTS` and working-
 
 ## Audit scope
 
-- App identity: package, app name, AdMob app id, Firebase project, and working-file service tokens.
-- Ads config: every CSV key/id must exist in `ad_config.json` and `ad_config_debug.json`, match exactly, and declare `isEnable`.
+- App identity: package, app name, AdMob app id, Firebase project, and working-file service tokens. The app name is read from the default `res/values/strings.xml`; translated locale files do not override it.
+- Ads config: every CSV key/id is checked against the release `ad_config.json`, must match exactly, and must declare `isEnable`. Debug/test IDs in `ad_config_debug.json` are intentionally not compared with the production contract.
 - `GlobalApp`: `MobileAds.initialize` -> `DevConfig.init` -> `AdRemoteConfig.initializeFromAssets` -> `ERainAd.init`, DevConfig BuildConfig fields, Adjust/Facebook/TikTok/interval/resume id, AppOpen exclusions, lifecycle observer.
 - `SplashActivity`: consent/RemoteConfig, `AdRemoteConfig` from `RemoteConfigUtils`, `inter_splash`, native language preload from `onAdLoaded`, `onNextAction` navigation, `open_resume`.
 - `LanguageActivity`: DevSetting on `tvTitle`, 100ms delay, native language/click, onboarding page-1 preload, LiveData render/hide behavior.
