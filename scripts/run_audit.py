@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -132,7 +133,7 @@ def post_webhook(url: str, token: str | None, payload: dict, attachment_path: Pa
 
 def _discord_error_block(index: int, error: dict) -> str:
     return "\n".join([
-        f"**{index}. {error['tieu_de']}**",
+        f"❌ **{index}. {error['tieu_de']}**",
         "**Mô tả:**",
         error["mo_ta"],
         "**Cách sửa:**",
@@ -155,17 +156,17 @@ def discord_message_payloads(payload: dict, max_content_length: int = 2000) -> l
         f"{icon} **Ads Audit: {payload['ket_qua']}**",
         f"App: {payload['ten_app']}",
         f"Package: `{payload['package_name']}`",
-        f"Tổng: {summary['loi_can_sua']} lỗi | {summary['can_ky_thuat_xac_nhan']} cần xác nhận | {summary['muc_da_kiem_tra_dung']} đạt",
+        f"Tổng: ❌ {summary['loi_can_sua']} lỗi | ⚠️ {summary['can_ky_thuat_xac_nhan']} cần xác nhận | ✅ {summary['muc_da_kiem_tra_dung']} đạt",
     ]
     sections = ["\n".join(header_lines)]
     errors = payload["loi"]
     if errors:
-        sections.append("**Lỗi cần sửa:**")
+        sections.append("❌ **Lỗi cần sửa:**")
         for index, error in enumerate(errors, start=1):
             sections.append(_discord_error_block(index, error))
     confirmations = payload["can_xac_nhan"]
     if confirmations:
-        sections.append("**Cần xác nhận:**")
+        sections.append("⚠️ **Cần xác nhận:**")
         sections.extend(f"{index}. {item}" for index, item in enumerate(confirmations, start=1))
     sections.append("File ads-audit-summary.md được đính kèm bên dưới để xem chi tiết.")
 
@@ -199,7 +200,8 @@ def discord_message_payload(payload: dict) -> dict:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     project = Path(args.project).resolve()
-    output_dir = Path(args.output_dir).resolve()
+    raw_output = Path(args.output_dir)
+    output_dir = (project / raw_output).resolve() if not raw_output.is_absolute() else raw_output.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
         ads_script = resolve_csv_input(project, args.ads_script, "ads")
@@ -213,7 +215,12 @@ def main(argv: list[str] | None = None) -> int:
     evidence_path = output_dir / "ads-audit-evidence.json"
     summary_path.write_text(render_summary(report), encoding="utf-8")
     evidence_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    webhook_url = None if args.no_webhook else (args.webhook_url or DEFAULT_WEBHOOK_URL)
+    webhook_url = None if args.no_webhook else (
+        args.webhook_url
+        or os.environ.get("ADS_AUDIT_WEBHOOK_URL")
+        or os.environ.get("DISCORD_WEBHOOK_URL")
+        or DEFAULT_WEBHOOK_URL
+    )
     if webhook_url:
         error = None
         for index, message in enumerate(discord_message_payloads(payload)):

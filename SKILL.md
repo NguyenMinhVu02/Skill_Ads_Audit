@@ -9,8 +9,8 @@ Treat the supplied CSVs as the app-specific contract. Treat the bundled base rul
 
 ## Run the audit
 
-1. Confirm the partner project contains its `ADS SCRIPTS` CSV and working-file CSV. Never substitute base IDs.
-2. Run the bundled auditor yourself from the partner project root. Resolve `scripts/run_audit.py` relative to the directory containing this `SKILL.md`; do not assume the skill lives under `.agents/skills`, because Codex and Claude Code use different skill locations. The Python runner auto-discovers one CSV of each kind, so the partner only needs to ask the AI host to check.
+1. Confirm the partner project contains its `ADS SCRIPTS` CSV and working-file CSV. If either is unavailable, ask for it; never substitute base IDs.
+2. Run the bundled auditor yourself from the partner project root. Resolve `scripts/run_audit.py` relative to the directory containing this `SKILL.md`; do not assume the skill lives under a fixed path, because Antigravity (`~/.gemini/antigravity/skills`), Codex (`~/.agents/skills`), and Claude Code (`~/.claude/skills`) use different skill locations. The Python runner auto-discovers one CSV of each kind, so the partner only needs to ask the AI host to check; never require them to type a terminal command.
 
 ```bash
 python3 "/absolute/path/to/this-skill/scripts/run_audit.py" \

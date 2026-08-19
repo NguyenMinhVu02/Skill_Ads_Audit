@@ -4,7 +4,7 @@ Skill này kiểm tra app Android của đối tác theo đúng hai file riêng 
 
 ## Phạm vi kiểm tra hiện tại
 
-- Thông tin app: package, app name, AdMob App ID, Firebase project, token/service trong working file. Tên app được lấy từ `res/values/strings.xml` mặc định; các file dịch theo locale không ghi đè giá trị này.
+- Thông tin app: package, app name, AdMob App ID, Firebase project, token/service trong working file.
 - Config quảng cáo: mọi key/ID trong CSV chỉ được đối chiếu với `ad_config.json` (release), phải đúng tuyệt đối và có `isEnable`. ID debug/test trong `ad_config_debug.json` được phép khác production và không bị báo lỗi contract.
 - `GlobalApp`: thứ tự `MobileAds.initialize` → `DevConfig.init` → `AdRemoteConfig.initializeFromAssets` → `ERainAd.init`; đủ `BuildConfig` version fields; đủ Adjust/Facebook/TikTok/interval/resume id; AppOpen exclusions; lifecycle observer.
 - `SplashActivity`: consent/RemoteConfig, apply `AdRemoteConfig` từ `RemoteConfigUtils`, load/show `inter_splash`, preload native language trong `onAdLoaded`, navigate trong `onNextAction`, setup `open_resume`.
@@ -30,7 +30,7 @@ CLI sẽ tự tìm đúng một file CSV có tên chứa `ADS SCRIPTS` và đún
 Cần có:
 
 - Node.js 18 trở lên (có `npx`).
-- Python 3.10 trở lên.
+- Python 3.9 trở lên.
 - Dự án Android và hai CSV riêng của app.
 
 ### CSV của từng đối tác có thể khác nhau
@@ -57,7 +57,44 @@ npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
   --no-webhook
 ```
 
-Kết quả nằm trong `ads-audit-output/ads-audit-summary.md` và `ads-audit-output/ads-audit-evidence.json`. Lệnh chỉ đọc dự án Android, không tự sửa source. Dùng `--no-webhook` để chỉ tạo báo cáo local.
+## Cài đặt nhanh 1-Click (Khuyên dùng)
+
+Clone repo và chạy script cài đặt tự động:
+
+```bash
+git clone https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git
+cd Skill_Ads_Audit
+
+# macOS / Linux:
+./install.sh
+
+# Windows (PowerShell):
+.\install.ps1
+```
+
+Script sẽ tự động nhận diện và cài đặt skill vào Antigravity / Gemini, Claude Code, hoặc Codex tùy theo môi trường trên máy.
+
+---
+
+## Dùng với Antigravity / Gemini CLI (AI + skill + webhook)
+
+Cài thủ công vào thư mục skill của Antigravity:
+
+```bash
+mkdir -p "$HOME/.gemini/antigravity/skills"
+git clone \
+  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
+  "$HOME/.gemini/antigravity/skills/infinity-ads-compliance-audit"
+```
+
+Sau đó trong Antigravity, chỉ cần yêu cầu:
+
+```text
+Hãy audit ads tuân thủ Infinity cho dự án này.
+Tự tìm ADS SCRIPTS CSV và working-file CSV. Không sửa code.
+```
+
+---
 
 ## Dùng với Codex CLI (AI + skill + webhook)
 
@@ -131,7 +168,7 @@ Trả kết quả bằng tiếng Việt.
 
 Claude Code đọc skill từ `.claude/skills/<skill-name>/SKILL.md` trong project hoặc `$HOME/.claude/skills/<skill-name>/SKILL.md` dùng chung cho user. Nếu cài skill khi Claude Code đang mở, hãy khởi động lại hoặc reload skill.
 
-Cả Codex và Claude đều cần Python 3.10 trở lên để chạy auditor. `npx` chỉ là phương án chạy bằng Terminal, không phải AI runtime.
+Cả Codex và Claude đều cần Python 3.9 trở lên để chạy auditor. `npx` chỉ là phương án chạy bằng Terminal, không phải AI runtime.
 
 ## Chạy auditor Python trực tiếp (tùy chọn)
 
@@ -213,6 +250,7 @@ Splash, Language, Onboarding, Home và Welcome là các màn chính của luồn
 
 | Công cụ | Thư mục cài | Cách gọi |
 | --- | --- | --- |
+| Antigravity | `$HOME/.gemini/antigravity/skills/` | Nhắc đến kiểm tra / audit ads tuân thủ Infinity |
 | Codex CLI | `$HOME/.agents/skills/` hoặc `.agents/skills/` | `$infinity-ads-compliance-audit` |
 | Claude Code | `$HOME/.claude/skills/` hoặc `.claude/skills/` | `/infinity-ads-compliance-audit` |
 

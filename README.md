@@ -30,7 +30,7 @@ The CLI searches the project for exactly one CSV whose name contains `ADS SCRIPT
 Requirements:
 
 - Node.js 18 or newer (provides `npx`).
-- Python 3.10 or newer.
+- Python 3.9 or newer.
 - The Android project and its two app-specific CSV files.
 
 ### Partner CSV formats
@@ -57,7 +57,44 @@ npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
   --no-webhook
 ```
 
-Reports are written to `ads-audit-output/ads-audit-summary.md` and `ads-audit-output/ads-audit-evidence.json`. The command reads the Android project; it does not modify source code. Use `--no-webhook` for a local-only report.
+## 1-Click Quick Install (Recommended)
+
+Clone the repository and run the installer script:
+
+```bash
+git clone https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git
+cd Skill_Ads_Audit
+
+# macOS / Linux:
+./install.sh
+
+# Windows (PowerShell):
+.\install.ps1
+```
+
+The script automatically detects installed AI environments (Antigravity/Gemini, Claude Code, OpenAI Codex) and places the skill in the appropriate directory.
+
+---
+
+## Use with Antigravity / Gemini CLI (AI + skill + webhook)
+
+Install manually for Antigravity:
+
+```bash
+mkdir -p "$HOME/.gemini/antigravity/skills"
+git clone \
+  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
+  "$HOME/.gemini/antigravity/skills/infinity-ads-compliance-audit"
+```
+
+Then in Antigravity chat, simply ask:
+
+```text
+Audit Infinity ads compliance for the current project.
+Auto-discover ADS SCRIPTS CSV and working-file CSV. Do not modify code.
+```
+
+---
 
 ## Use with Codex CLI (AI + skill + webhook)
 
@@ -131,7 +168,7 @@ report to the configured Discord webhook. Reply in Vietnamese.
 
 Claude Code loads skills from `.claude/skills/<skill-name>/SKILL.md` for a project or `$HOME/.claude/skills/<skill-name>/SKILL.md` for the user. If the skill was added while Claude Code was already open, restart it or reload skills.
 
-Both Codex and Claude require Python 3.10 or newer for the bundled auditor. `npx` is only the terminal-only fallback; it does not provide the AI conversation.
+Both Codex and Claude require Python 3.9 or newer for the bundled auditor. `npx` is only the terminal-only fallback; it does not provide the AI conversation.
 
 ## Run the Python auditor directly (optional)
 
@@ -207,6 +244,7 @@ Splash, Language, Onboarding, Home, and Welcome are primary ads-journey screens 
 
 | Host | Install location | Invocation |
 | --- | --- | --- |
+| Antigravity | `$HOME/.gemini/antigravity/skills/` | Mention auditing / checking Infinity ads compliance |
 | Codex CLI | `$HOME/.agents/skills/` or `.agents/skills/` | `$infinity-ads-compliance-audit` |
 | Claude Code | `$HOME/.claude/skills/` or `.claude/skills/` | `/infinity-ads-compliance-audit` |
 

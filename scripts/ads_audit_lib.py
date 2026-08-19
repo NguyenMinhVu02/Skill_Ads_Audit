@@ -51,8 +51,31 @@ _HEADER_ALIASES = {
         "loaiads",
     },
     "Mô tả": {"mota", "description", "desc", "des", "note", "ghichu"},
-    "Task Detail": {"taskdetail", "congviec", "chitietcongviec"},
-    "Document": {"document", "doc", "link", "tailieu"},
+    "Task Detail": {
+        "taskdetail",
+        "congviec",
+        "chitietcongviec",
+        "content",
+        "noidung",
+        "field",
+        "fieldname",
+        "tentruong",
+        "key",
+        "muc",
+        "hangmuc",
+    },
+    "Document": {
+        "document",
+        "doc",
+        "link",
+        "tailieu",
+        "detail",
+        "chitiet",
+        "value",
+        "giatri",
+        "data",
+        "dulieu",
+    },
 }
 
 _KIND_HEADER_ALIASES = {
@@ -1086,12 +1109,7 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
     _check_equal(report, "ADMOB_APP_ID", "identity", contract.admob_app_id, app_id, "Set the AdMob manifest placeholder to the ADS Script APP ID.")
     if "com.google.android.gms.ads.APPLICATION_ID" not in manifest_text:
         report.findings.append(Finding.fail("ADMOB_MANIFEST_META", "identity", "AdMob APPLICATION_ID meta-data", "missing", "Add the Google Mobile Ads APPLICATION_ID meta-data entry to AndroidManifest.xml."))
-    else:
-        report.findings.append(Finding.pass_("ADMOB_MANIFEST_META", "identity", "AdMob APPLICATION_ID meta-data", "found"))
     string_paths = [path for path in all_text_paths if path.name == "strings.xml"]
-    # Android's default resource (`res/values`) is the app identity. Locale
-    # files may intentionally contain translated names and must not override
-    # the contract value merely because filesystem traversal lists them first.
     string_paths.sort(key=lambda path: (path.parent.name != "values", str(path)))
     app_name = None
     for string_path in string_paths:
@@ -1100,9 +1118,6 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
             app_name = unescape(match.group(1).strip())
             break
     _check_equal(report, "APP_NAME", "identity", checklist.app_name, app_name, "Set `app_name` to the working checklist value.")
-    # The partner contract is the release configuration. Debug/test IDs are
-    # intentionally not compared with ADS SCRIPTS because they are expected to
-    # differ from production IDs.
     _check_config(report, root, contract, "ad_config.json", "RELEASE")
     searchable = _combined_text(all_text_paths)
     for key, value in checklist.required_values.items():
@@ -1161,6 +1176,8 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
         report.findings.append(Finding.pass_("ARCH_DIRECT_SDK_BYPASS", "architecture", "no unapproved direct Activity SDK calls", "none found"))
     _check_primary_screen_activities(report, root, manifests, source_paths, navigation_paths)
     _check_screen_flow_rules(report, root, source_paths)
+    if overrides_path is None and (root / "ads-audit-overrides.yaml").is_file():
+        overrides_path = root / "ads-audit-overrides.yaml"
     overrides = _load_overrides(Path(overrides_path) if overrides_path else None)
     _check_flow(report, root, contract, source_paths, overrides)
     _check_inter_welcome_back(report, root, contract, source_paths, manager_text, global_text, overrides)
@@ -1487,30 +1504,30 @@ def render_summary(report: AuditReport) -> str:
         "",
         "## Summary",
         "",
-        f"- FAIL: {counts.get('fail', 0)}",
-        f"- NEEDS_MAPPING: {counts.get('needs_mapping', 0)}",
-        f"- NEEDS_RUNTIME_PROOF: {counts.get('needs_runtime_proof', 0)}",
-        f"- PASS: {counts.get('pass', 0)}",
+        f"- ❌ FAIL: {counts.get('fail', 0)}",
+        f"- ⚠️ NEEDS_MAPPING: {counts.get('needs_mapping', 0)}",
+        f"- 🔍 NEEDS_RUNTIME_PROOF: {counts.get('needs_runtime_proof', 0)}",
+        f"- ✅ PASS: {counts.get('pass', 0)}",
         "",
         "## MKT short report",
         "",
         f"- Kết quả: {payload['ket_qua']}",
         f"- App: {payload['ten_app']}",
         f"- Package: `{payload['package_name']}`",
-        f"- Tổng: {payload['tong_quan']['loi_can_sua']} lỗi | {payload['tong_quan']['can_ky_thuat_xac_nhan']} cần xác nhận | {payload['tong_quan']['muc_da_kiem_tra_dung']} đạt",
+        f"- Tổng: ❌ {payload['tong_quan']['loi_can_sua']} lỗi | ⚠️ {payload['tong_quan']['can_ky_thuat_xac_nhan']} cần xác nhận | ✅ {payload['tong_quan']['muc_da_kiem_tra_dung']} đạt",
         "",
     ]
     if payload["loi"]:
-        lines.extend(["### Lỗi cần sửa", ""])
+        lines.extend(["### ❌ Lỗi cần sửa", ""])
         for index, error in enumerate(payload["loi"], start=1):
-            lines.append(f"**{index}. {error['tieu_de']}**")
+            lines.append(f"❌ **{index}. {error['tieu_de']}**")
             lines.append("**Mô tả:**")
             lines.append(error["mo_ta"])
             lines.append("**Cách sửa:**")
             lines.append(error["can_lam"])
         lines.append("")
     if payload["can_xac_nhan"]:
-        lines.extend(["### Cần xác nhận", ""])
+        lines.extend(["### ⚠️ Cần xác nhận", ""])
         lines.extend(f"{index}. {item}" for index, item in enumerate(payload["can_xac_nhan"], start=1))
         lines.append("")
     lines.extend([
@@ -1526,7 +1543,7 @@ def render_summary(report: AuditReport) -> str:
         if group_actions:
             names = ", ".join(finding.rule_id.split(":", 1)[1] for finding in group_actions)
             lines.extend([
-                f"### FAIL — `{group}` ({len(group_actions)} placements)",
+                f"### ❌ FAIL — `{group}` ({len(group_actions)} placements)",
                 f"Keys with missing/mismatched IDs: {names}",
                 "Fix: align every listed key and ID with ADS SCRIPTS; see `ads-audit-evidence.json` for exact expected/observed IDs.",
                 "",
@@ -1534,9 +1551,10 @@ def render_summary(report: AuditReport) -> str:
     for finding in actions:
         if finding in config_actions:
             continue
+        status_icon = "❌" if finding.status == "FAIL" else "⚠️" if finding.status == "NEEDS_MAPPING" else "🔍"
         location = f" ({finding.location})" if finding.location else ""
         lines.extend([
-            f"### {finding.status} — `{finding.rule_id}`{location}",
+            f"### {status_icon} {finding.status} — `{finding.rule_id}`{location}",
             f"Expected: {finding.expected}",
             f"Observed: {finding.observed}",
             f"Fix: {finding.recommendation}",
