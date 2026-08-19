@@ -58,8 +58,8 @@ Resolve inputs in this order, and stop to ask rather than guessing:
 
 Resolve `scripts/run_audit.py` relative to the directory holding this
 `SKILL.md`. Skill locations differ per host — Claude Code
-(`~/.claude/skills`), Codex (`~/.agents/skills`), Antigravity
-(`~/.gemini/antigravity/skills`) — so never assume a fixed path.
+(`~/.claude/skills`), Codex (`$CODEX_HOME/skills`, default `~/.codex/skills`),
+Antigravity (`~/.gemini/antigravity/skills`) — so never assume a fixed path.
 
 Run it yourself from the app root. Do not ask the partner to type commands.
 

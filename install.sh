@@ -30,7 +30,13 @@ if [ -d "$HOME/.claude" ]; then
     TARGETS+=("$HOME/.claude/skills/$SKILL_NAME")
 fi
 
-# 3. OpenAI Codex (if directory exists)
+# 3. OpenAI Codex — reads $CODEX_HOME/skills, which defaults to ~/.codex/skills
+CODEX_SKILL_HOME="${CODEX_HOME:-$HOME/.codex}"
+if [ -d "$CODEX_SKILL_HOME" ]; then
+    TARGETS+=("$CODEX_SKILL_HOME/skills/$SKILL_NAME")
+fi
+
+# 4. Legacy/other agents that read ~/.agents/skills
 if [ -d "$HOME/.agents" ]; then
     TARGETS+=("$HOME/.agents/skills/$SKILL_NAME")
 fi
@@ -43,7 +49,7 @@ fi
 echo "⏳ Installing skill files..."
 for target in "${TARGETS[@]}"; do
     mkdir -p "$target"
-    rsync -a --exclude='.git' --exclude='__pycache__' --exclude='*.pyc' --exclude='ads-audit-output' --exclude='node_modules' "$SCRIPT_DIR/" "$target/" 2>/dev/null || cp -R "$SCRIPT_DIR/"* "$target/"
+    rsync -a --exclude='.git' --exclude='CLAUDE.md' --exclude='__pycache__' --exclude='*.pyc' --exclude='ads-audit-output' --exclude='node_modules' "$SCRIPT_DIR/" "$target/" 2>/dev/null || cp -R "$SCRIPT_DIR/"* "$target/"
     echo "   ✅ Installed to: $target"
 done
 

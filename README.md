@@ -21,8 +21,11 @@ each one it finds:
 | Host | Location | Invoke with |
 | --- | --- | --- |
 | Claude Code | `~/.claude/skills/` | `/infinity-ads-compliance-audit` |
-| Codex CLI | `~/.agents/skills/` | `$infinity-ads-compliance-audit` |
+| Codex CLI | `$CODEX_HOME/skills/` (default `~/.codex/skills/`) | `$infinity-ads-compliance-audit` |
 | Antigravity / Gemini | `~/.gemini/antigravity/skills/` | ask in plain language |
+
+Codex reads skills from `$CODEX_HOME/skills`, **not** `~/.agents/skills`. The
+installer writes to both, so an older Codex keeps working.
 
 To install into one repository instead of the whole machine, clone into
 `<project>/.claude/skills/infinity-ads-compliance-audit/` (or `.agents/skills/`).
@@ -33,7 +36,9 @@ library only.
 
 ## Use
 
-From the Android project root:
+From the Android project root.
+
+**Claude Code** — start `claude`, then:
 
 ```text
 /infinity-ads-compliance-audit
@@ -43,6 +48,23 @@ Audit this project. Documents:
   Checklist:    https://docs.google.com/document/d/.../edit
 Do not modify source. Reply in Vietnamese.
 ```
+
+**Codex CLI** — start `codex`, then use the `$` sigil:
+
+```text
+$infinity-ads-compliance-audit
+
+Audit this project. Documents:
+  ADS SCRIPTS:  https://docs.google.com/spreadsheets/d/.../edit#gid=0
+  Checklist:    https://docs.google.com/document/d/.../edit
+Do not modify source. Reply in Vietnamese.
+```
+
+Both hosts also select the skill on their own when you simply describe the task
+("kiểm tra tuân thủ ads cho project này"). The explicit sigil just guarantees it.
+
+If the two CSV files already sit in the project, drop the Documents block —
+they are discovered automatically.
 
 The agent runs the bundled auditor, reads the generated reports, checks each
 finding against the code, and sends the sanitized report to Discord unless you

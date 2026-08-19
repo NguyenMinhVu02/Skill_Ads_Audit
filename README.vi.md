@@ -20,8 +20,11 @@ Script tự nhận diện các agent có trên máy và copy skill vào từng c
 | Host | Vị trí | Gọi bằng |
 | --- | --- | --- |
 | Claude Code | `~/.claude/skills/` | `/infinity-ads-compliance-audit` |
-| Codex CLI | `~/.agents/skills/` | `$infinity-ads-compliance-audit` |
+| Codex CLI | `$CODEX_HOME/skills/` (mặc định `~/.codex/skills/`) | `$infinity-ads-compliance-audit` |
 | Antigravity / Gemini | `~/.gemini/antigravity/skills/` | nhắn bằng lời bình thường |
+
+Codex đọc skill ở `$CODEX_HOME/skills`, **không phải** `~/.agents/skills`. Script
+cài vào cả hai nên Codex bản cũ vẫn chạy được.
 
 Muốn cài cho riêng một repo thì clone vào
 `<project>/.claude/skills/infinity-ads-compliance-audit/` (hoặc `.agents/skills/`).
@@ -31,7 +34,9 @@ Yêu cầu: Python 3.9 trở lên và `curl`. Không cần cài thư viện Pyth
 
 ## Cách dùng
 
-Đứng ở thư mục gốc project Android:
+Đứng ở thư mục gốc project Android.
+
+**Claude Code** — chạy `claude`, rồi gõ:
 
 ```text
 /infinity-ads-compliance-audit
@@ -41,6 +46,22 @@ Kiểm tra project này. Tài liệu:
   Checklist:    https://docs.google.com/document/d/.../edit
 Không sửa code. Trả lời bằng tiếng Việt.
 ```
+
+**Codex CLI** — chạy `codex`, rồi dùng dấu `$`:
+
+```text
+$infinity-ads-compliance-audit
+
+Kiểm tra project này. Tài liệu:
+  ADS SCRIPTS:  https://docs.google.com/spreadsheets/d/.../edit#gid=0
+  Checklist:    https://docs.google.com/document/d/.../edit
+Không sửa code. Trả lời bằng tiếng Việt.
+```
+
+Cả hai đều có thể tự chọn skill khi bạn chỉ mô tả công việc ("kiểm tra tuân thủ
+ads cho project này"). Gõ `/` hoặc `$` là cách chắc chắn nhất.
+
+Nếu 2 file CSV đã nằm sẵn trong project thì bỏ hẳn phần Tài liệu — skill tự tìm.
 
 AI sẽ chạy auditor, đọc báo cáo, đối chiếu từng lỗi với code thật, rồi gửi báo
 cáo đã lọc bí mật lên Discord — trừ khi bạn yêu cầu chỉ chạy local.
