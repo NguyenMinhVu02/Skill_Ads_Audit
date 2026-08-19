@@ -1,3 +1,5 @@
+**Language / Ngôn ngữ / भाषा:** [English](README.md) | [Tiếng Việt](README.vi.md) | [हिन्दी](README.hi.md)
+
 # Infinity Ads Compliance Audit
 
 Skill cho **Claude Code** và **Codex**, dùng để kiểm tra phần gắn quảng cáo của
