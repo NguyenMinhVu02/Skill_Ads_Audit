@@ -1,251 +1,153 @@
 # Infinity Ads Compliance Audit
 
-Audit an Android partner app against its own Infinity `ADS SCRIPTS` and working-file CSVs, then compare the implementation with the full `Example-AdLogic-Partner` ads base flow. The audit reads the app; it does not modify it.
+An agent skill for **Claude Code** and **Codex** that audits an Android app's
+Infinity ads integration against the base project and the app's own contract
+documents. The audit reads the project; it never modifies source.
 
-## Audit scope
+Install it once, then ask the AI to check any Android project.
 
-- App identity: package, app name, AdMob app id, Firebase project, and working-file service tokens. The app name is read from the default `res/values/strings.xml`; translated locale files do not override it.
-- Ads config: every CSV key/id is checked against the release `ad_config.json`, must match exactly, and must declare `isEnable`. Debug/test IDs in `ad_config_debug.json` are intentionally not compared with the production contract.
-- `GlobalApp`: `MobileAds.initialize` -> `DevConfig.init` -> `AdRemoteConfig.initializeFromAssets` -> `ERainAd.init`, DevConfig BuildConfig fields, Adjust/Facebook/TikTok/interval/resume id, AppOpen exclusions, lifecycle observer.
-- `SplashActivity`: consent/RemoteConfig, `AdRemoteConfig` from `RemoteConfigUtils`, `inter_splash`, native language preload from `onAdLoaded`, `onNextAction` navigation, `open_resume`.
-- `LanguageActivity`: DevSetting on `tvTitle`, 100ms delay, native language/click, onboarding page-1 preload, LiveData render/hide behavior.
-- `OnBoardingActivity` and `OnboardingPageFragment`: native page 4/full/inter preload, uninstall widget gate, page LiveData mapping, final `showInterOnboarding` callback to Home.
-- `ResumeAdsEntryRule`, `AppLifecycleObserver`, `WelcomeActivity`: open-resume vs Welcome mode, disabled screens, purchase/interstitial/UA gates, native/inter Welcome load/show.
-- `AdsManager`: central native/inter/banner load-show, `isEnable`, purchase, network, `config.enableUaCheck`, null fallback, callback navigation.
-- `BaseActivityWithBanner`: `BannerConfig`, `AdsManager.loadBanner`, purchase/config/container gates, and `reloadIntervalSeconds`.
-- Unmapped placements remain `NEEDS_MAPPING`; user-event/lifecycle cases that static analysis cannot prove remain `NEEDS_RUNTIME_PROOF`.
-
-## Fastest partner workflow: run with npx
-
-From the root of the Android project, run:
-
-```bash
-npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
-  --project . \
-  --no-webhook
-```
-
-The CLI searches the project for exactly one CSV whose name contains `ADS SCRIPTS` and exactly one CSV whose name contains `working` or `work file`. It never guesses when there are zero or multiple matches.
-
-Requirements:
-
-- Node.js 18 or newer (provides `npx`).
-- Python 3.9 or newer.
-- The Android project and its two app-specific CSV files.
-
-### Partner CSV formats
-
-The auditor does not require every partner to use the same spreadsheet layout. For the `ADS SCRIPTS` file it automatically handles:
-
-- comma, semicolon, tab, or pipe delimiters;
-- English or Vietnamese column labels, with different capitalization and spacing;
-- a few title/export rows before the real header row;
-- common aliases such as `Ad Unit ID`, `Placement Name`, `Ad Type`, `Tên vị trí`, and `Loại quảng cáo`;
-- an unnamed ID column when its values clearly look like ad-unit IDs (for example `ca-app-pub-.../...`).
-
-The working file is flexible too. It recognizes key/value pairs such as `Task Detail / Document`, `Content / Detail`, `Field / Value`, `Key / Data`, and their common Vietnamese equivalents. Column order and unrelated columns such as `Order`, `PIC`, owner, or status do not matter. Row labels such as `Application name`, `Bundle ID`, and `Firebase project` are normalized to the expected checklist fields.
-
-When headers are unfamiliar, the parser can infer columns from recognizable values: checklist labels, package names, Firebase URLs, placement keys, ad formats, and ad-unit IDs. Explicit aliases always win. If two columns are equally plausible or confidence is too low, the audit stops and reports the delimiter, detected headers, and missing semantics instead of silently auditing the wrong data.
-
-If the CLI reports multiple CSV candidates, pass the files explicitly:
-
-```bash
-npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit \
-  --project . \
-  --ads-script "./config/ADS SCRIPTS.csv" \
-  --working-file "./config/working-file.csv" \
-  --no-webhook
-```
-
-## 1-Click Quick Install (Recommended)
-
-Clone the repository and run the installer script:
+## Install
 
 ```bash
 git clone https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git
 cd Skill_Ads_Audit
-
-# macOS / Linux:
-./install.sh
-
-# Windows (PowerShell):
-.\install.ps1
+./install.sh          # macOS / Linux
+.\install.ps1         # Windows PowerShell
 ```
 
-The script automatically detects installed AI environments (Antigravity/Gemini, Claude Code, OpenAI Codex) and places the skill in the appropriate directory.
+The installer detects which agents are on the machine and copies the skill into
+each one it finds:
 
----
+| Host | Location | Invoke with |
+| --- | --- | --- |
+| Claude Code | `~/.claude/skills/` | `/infinity-ads-compliance-audit` |
+| Codex CLI | `~/.agents/skills/` | `$infinity-ads-compliance-audit` |
+| Antigravity / Gemini | `~/.gemini/antigravity/skills/` | ask in plain language |
 
-## Use with Antigravity / Gemini CLI (AI + skill + webhook)
+To install into one repository instead of the whole machine, clone into
+`<project>/.claude/skills/infinity-ads-compliance-audit/` (or `.agents/skills/`).
+Restart the agent afterwards so it picks up the new skill.
 
-Install manually for Antigravity:
+Requires Python 3.9+ and `curl`. No Python packages to install — standard
+library only.
 
-```bash
-mkdir -p "$HOME/.gemini/antigravity/skills"
-git clone \
-  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
-  "$HOME/.gemini/antigravity/skills/infinity-ads-compliance-audit"
-```
+## Use
 
-Then in Antigravity chat, simply ask:
-
-```text
-Audit Infinity ads compliance for the current project.
-Auto-discover ADS SCRIPTS CSV and working-file CSV. Do not modify code.
-```
-
----
-
-## Use with Codex CLI (AI + skill + webhook)
-
-Install for every project on the machine:
-
-```bash
-mkdir -p "$HOME/.agents/skills"
-git clone \
-  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
-  "$HOME/.agents/skills/infinity-ads-compliance-audit"
-```
-
-Or install only in one repository:
-
-```text
-partner-app/.agents/skills/infinity-ads-compliance-audit/
-```
-
-Then run Codex from the Android project root:
-
-```bash
-cd partner-app
-codex
-```
-
-Ask Codex to invoke the skill with `$infinity-ads-compliance-audit`:
-
-```text
-Use $infinity-ads-compliance-audit to audit the current project.
-Find the ADS SCRIPTS CSV and working-file CSV yourself. Do not change code.
-Do not check app-ads.txt.
-Return a short Vietnamese MKT report with app name, package name, errors to fix, items requiring technical confirmation, and passed checks.
-Send the sanitized report to the configured Discord webhook.
-```
-
-Codex reads the skill, runs the bundled auditor, reads the generated reports, and sends the webhook unless the prompt asks for a local-only run. The partner does not need to type the Python command.
-
-## Use with Claude Code (AI + skill + webhook)
-
-Install for every project on the machine:
-
-```bash
-mkdir -p "$HOME/.claude/skills"
-git clone \
-  https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git \
-  "$HOME/.claude/skills/infinity-ads-compliance-audit"
-```
-
-Or install only in one repository:
-
-```text
-partner-app/.claude/skills/infinity-ads-compliance-audit/
-```
-
-Then run Claude Code from the Android project root:
-
-```bash
-cd partner-app
-claude
-```
-
-Invoke the skill with `/infinity-ads-compliance-audit`:
+From the Android project root:
 
 ```text
 /infinity-ads-compliance-audit
 
-Audit this Android project. Find the ADS SCRIPTS CSV and working-file CSV,
-do not modify source code, read the generated reports, and send the sanitized
-report to the configured Discord webhook. Reply in Vietnamese.
+Audit this project. Documents:
+  ADS SCRIPTS:  https://docs.google.com/spreadsheets/d/.../edit#gid=0
+  Checklist:    https://docs.google.com/document/d/.../edit
+Do not modify source. Reply in Vietnamese.
 ```
 
-Claude Code loads skills from `.claude/skills/<skill-name>/SKILL.md` for a project or `$HOME/.claude/skills/<skill-name>/SKILL.md` for the user. If the skill was added while Claude Code was already open, restart it or reload skills.
+The agent runs the bundled auditor, reads the generated reports, checks each
+finding against the code, and sends the sanitized report to Discord unless you
+ask for a local-only run.
 
-Both Codex and Claude require Python 3.9 or newer for the bundled auditor. `npx` is only the terminal-only fallback; it does not provide the AI conversation.
+### The two documents
 
-## Run the Python auditor directly (optional)
+| Document | Carries |
+| --- | --- |
+| **ADS SCRIPTS** | placement key, ad type, ad-unit ID, AdMob APP ID |
+| **working checklist** | app name, package, Firebase project, Adjust/Facebook/TikTok tokens |
 
-From the partner repository root:
+Each may be a local CSV or a **Google Sheets / Google Docs link**. Sheets are
+exported as CSV; Docs are read as `label: value` lines. Share the link as
+anyone-with-the-link viewer, otherwise the download returns a sign-in page and
+the audit stops with a sharing error.
+
+If both documents are already CSV files inside the project, they are discovered
+automatically — one filename containing `ADS SCRIPTS`, one containing `working`
+or `work file`. Discovery never guesses when it finds zero or several matches.
+
+Partner spreadsheets do not need a fixed layout. The parser handles comma,
+semicolon, tab and pipe delimiters, English and Vietnamese column labels, title
+rows before the real header, and common aliases. When headers are unfamiliar it
+infers columns from recognisable values — package names, Firebase URLs, ad
+formats, ad-unit IDs. Explicit aliases always win, and if two columns are
+equally plausible the audit **stops and reports** rather than auditing the wrong
+data.
+
+## What gets checked
+
+Calibrated against the Infinity base project so that a correct app passes
+cleanly.
+
+- **Identity** — package, app name (from default `res/values/strings.xml`, not a
+  translation), AdMob app id from the **release** `manifestPlaceholders`,
+  Firebase project, service tokens.
+- **Config** — every contract key/ID exists in release `ad_config.json`, matches
+  exactly, and declares `isEnable`. `ad_config_debug.json` is deliberately
+  exempt.
+- **Init order** — `MobileAds.initialize` → `DevConfig.init` →
+  `AdRemoteConfig.initializeFromAssets` → `ERainAd.init`, plus the DevConfig
+  version fields, `ERainAdConfig` fields, `intervalInterstitialAd`, AppOpen
+  exclusions, lifecycle observer and activity callbacks.
+- **Screen structure** — Splash, Language, Onboarding, Home and Welcome must be
+  separate Activities. A single-Activity + Fragment implementation of those
+  screens is an error. Fragments used as *pages inside* them are correct.
+- **Preload / load / show** — where each ad is preloaded, the four load gates
+  (`isEnable`, purchase, network, `getShouldDisplay*(config.enableUaCheck)`),
+  null-fallback hiding, and interstitials navigating only from their callback.
+- **Resume vs Welcome** — mode selection, disabled-screen lists, and the gates
+  that stop an App Open ad stacking with a Welcome interstitial.
+- **Banner** — config/purchase/container gates and `reloadIntervalSeconds`.
+
+Unmapped placements stay `NEEDS_MAPPING`. Claims static analysis cannot settle
+stay `NEEDS_RUNTIME_PROOF` with a test case attached. Neither is a pass.
+
+## Output
+
+Written to `ads-audit-output/` inside the audited project:
+
+- `ads-audit-summary.md` — full finding list for developers.
+- `ads-audit-evidence.json` — sanitized Vietnamese MKT payload.
+
+The command exits `0` with no static failures, `2` when fixes are required, and
+`1` for invalid input.
+
+Reports redact Adjust, Facebook client, and TikTok values. They never include
+`app-ads.txt` checks.
+
+## Custom placements
+
+If a placement returns `NEEDS_MAPPING`, copy `templates/ads-audit-overrides.yaml`
+into the app and add the approved class and call mapping, keeping the contract
+key and ID exactly. Some placements — `native_home`, `native_permission`,
+`native_onboarding_fullscreen_*_4`, `banner_splash`, `reward_example` — exist in
+`AdsManager` but are not wired to a screen in the base, so they land here by
+design.
+
+## Discord webhook
+
+The skill posts a short MKT report plus the summary file after each audit.
+Disable per-run with `--no-webhook`. Override the endpoint with `--webhook-url`
+or the `ADS_AUDIT_WEBHOOK_URL` / `DISCORD_WEBHOOK_URL` environment variables.
+
+## Running the auditor directly
+
+Useful for CI or debugging; the AI path above is the intended one.
 
 ```bash
-python3 "/path/to/infinity-ads-compliance-audit/scripts/run_audit.py" \
-  --project .
+python3 scripts/run_audit.py --project /path/to/app --no-webhook
+python3 scripts/run_audit.py --project . \
+  --ads-script "https://docs.google.com/spreadsheets/d/<id>/edit#gid=0" \
+  --working-file "./working file.csv"
 ```
 
-The Python CLI now auto-discovers the same two files as the npx command. When there are zero or multiple candidates, pass explicit paths; supplied paths always take precedence:
+## Package for a partner repo
 
 ```bash
-python3 "/path/to/infinity-ads-compliance-audit/scripts/run_audit.py" \
-  --project . \
-  --ads-script "/path/to/ADS SCRIPTS.csv" \
-  --working-file "/path/to/working file.csv"
+python3 scripts/package_skill.py --skill-root . --output infinity-ads-audit.zip
 ```
 
-Read the generated files in `ads-audit-output/`:
+## Reference
 
-- `ads-audit-summary.md`: short fix list for the partner.
-- `ads-audit-evidence.json`: short webhook payload for Infinity review or Discord delivery.
-
-The command returns `0` without static failures, `2` when fixes are required, and `1` for invalid inputs.
-
-## Package for partner repos
-
-```bash
-python3 infinity-ads-compliance-audit/scripts/package_skill.py \
-  --skill-root infinity-ads-compliance-audit \
-  --output infinity-ads-compliance-audit.zip
-```
-
-The zip excludes `__pycache__`, `.pyc`, and `ads-audit-output/` so the partner receives a clean skill package.
-
-## Automatic Discord webhook
-
-The bundled skill sends a short MKT report to its embedded Discord webhook after each audit unless `--no-webhook` is passed. It includes app name, package name, counts, short errors, and items requiring technical confirmation. It also attaches `ads-audit-summary.md` so developers can open the full local report from Discord. No webhook URL is needed when using the skill.
-
-Each Discord error is rendered as separate lines:
-
-```text
-1. Error group title
-Mô tả: short problem description
-**Cách sửa:** concrete developer fix
-```
-
-Use `--no-webhook` only when Infinity requests a local-only audit.
-
-## Override webhook (Infinity-approved only)
-
-```bash
-python3 "/path/to/infinity-ads-compliance-audit/scripts/run_audit.py" \
-  --project . --ads-script "/path/to/ADS SCRIPTS.csv" \
-  --working-file "/path/to/working file.csv" \
-  --webhook-url "https://your-endpoint.example/audits"
-```
-
-Add `--webhook-token "$TOKEN"` only if the endpoint requires bearer authorization. The report redacts Adjust, Facebook client, and TikTok secret values.
-
-The webhook payload contains `ten_app`, `package_name`, a short MKT-friendly error list, and items requiring technical confirmation. It does not check or send `app-ads.txt` information.
-
-## When an app has a custom placement
-
-The CSV is authoritative, so custom keys are allowed. If the tool returns `NEEDS_MAPPING`, copy `templates/ads-audit-overrides.yaml` into the app and add the approved class/call/event mapping. `NEEDS_RUNTIME_PROOF` means a tester must run the listed user journey; it is not a pass.
-
-## Required screen architecture
-
-Splash, Language, Onboarding, Home, and Welcome are primary ads-journey screens and must be separate `Activity` classes following the Infinity base. A single-`Activity` implementation that uses `Fragment`s for those screens is reported as an error. Small UI-only fragments within a compliant Activity screen are allowed.
-
-## AI invocation summary
-
-| Host | Install location | Invocation |
-| --- | --- | --- |
-| Antigravity | `$HOME/.gemini/antigravity/skills/` | Mention auditing / checking Infinity ads compliance |
-| Codex CLI | `$HOME/.agents/skills/` or `.agents/skills/` | `$infinity-ads-compliance-audit` |
-| Claude Code | `$HOME/.claude/skills/` or `.claude/skills/` | `/infinity-ads-compliance-audit` |
-
-The AI host runs the local auditor and then explains the evidence. The auditor itself is deterministic Python code; `npx` is not an AI runtime.
+- `references/base-code-reference.md` — the base implementation in code:
+  Gradle, `GlobalApp`, `AdsManager`, every screen, gates, config schema.
+- `references/base-integration-rules.md` — the same rules as a checklist.
+- `references/placement-rule-map.yaml` — approved evidence per placement.

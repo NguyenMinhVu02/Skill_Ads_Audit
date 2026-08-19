@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 from ads_audit_lib import Finding, build_webhook_payload, inspect_project, parse_ads_script, parse_working_file, render_summary
+from doc_sources import DocumentError, is_url, resolve_document
 
 
 DEFAULT_WEBHOOK_URL = "https://discord.com/api/webhooks/1536937706842755122/SCT5zl1HOoRGL2D2EbOFKmttUN4lCCOTs8PRo9fyoe4sjliFNJEBq76QE-8XkmnLSmCO"
@@ -21,8 +22,8 @@ CSV_SKIP_DIRS = {".git", ".gradle", ".idea", ".agents", ".codex", "ads-audit-out
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Audit an Android partner ads integration against Infinity CSV contracts.")
     parser.add_argument("--project", default=".", help="Android project root (default: current directory)")
-    parser.add_argument("--ads-script", help="Path to the project ADS SCRIPTS CSV (auto-discovered when omitted)")
-    parser.add_argument("--working-file", help="Path to the project working-file CSV (auto-discovered when omitted)")
+    parser.add_argument("--ads-script", help="ADS SCRIPTS CSV: local path or Google Sheets/Docs link (auto-discovered when omitted)")
+    parser.add_argument("--working-file", help="Working checklist: local path or Google Sheets/Docs link (auto-discovered when omitted)")
     parser.add_argument("--output-dir", default="ads-audit-output", help="Directory for report files")
     parser.add_argument("--overrides", help="Optional approved ads-audit-overrides.yaml path")
     parser.add_argument("--webhook-url", help="Override the embedded HTTPS endpoint for a sanitized JSON report")
@@ -57,12 +58,15 @@ def discover_csv(project: Path, kind: str) -> Path:
     return matches[0]
 
 
-def resolve_csv_input(project: Path, supplied: str | None, kind: str) -> Path:
+def resolve_csv_input(project: Path, supplied: str | None, kind: str, cache_dir: Path | None = None) -> Path:
     if supplied is None:
         return discover_csv(project, kind)
     if not supplied.strip():
         flag = "--ads-script" if kind == "ads" else "--working-file"
         raise ValueError(f"{flag} cannot be empty.")
+    if is_url(supplied):
+        # A Google Sheets/Docs share link, or any URL serving CSV.
+        return resolve_document(supplied.strip(), "ads-script" if kind == "ads" else "working-file", cache_dir)
     candidate = Path(supplied).expanduser()
     if not candidate.is_absolute():
         candidate = project / candidate
@@ -204,10 +208,11 @@ def main(argv: list[str] | None = None) -> int:
     output_dir = (project / raw_output).resolve() if not raw_output.is_absolute() else raw_output.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     try:
-        ads_script = resolve_csv_input(project, args.ads_script, "ads")
-        working_file = resolve_csv_input(project, args.working_file, "working")
+        doc_cache = output_dir / "source-documents"
+        ads_script = resolve_csv_input(project, args.ads_script, "ads", doc_cache)
+        working_file = resolve_csv_input(project, args.working_file, "working", doc_cache)
         report = inspect_project(project, parse_ads_script(ads_script), parse_working_file(working_file), args.overrides)
-    except (OSError, ValueError, json.JSONDecodeError) as error:
+    except (OSError, ValueError, DocumentError, json.JSONDecodeError) as error:
         print(f"Audit setup error: {error}", file=sys.stderr)
         return 1
     payload = build_webhook_payload(project.name, report.checklist, report.findings, report.readiness())

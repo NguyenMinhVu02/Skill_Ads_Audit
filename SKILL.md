@@ -1,76 +1,161 @@
 ---
 name: infinity-ads-compliance-audit
-description: Use when auditing an Android partner app's Infinity ads integration against project-specific ADS SCRIPTS and working-file CSVs, including AdMob IDs, package/tokens, Remote Config, Application-to-onboarding flow, placement logic, or webhook-ready compliance reports.
+description: Use when auditing an Android partner app's Infinity ads integration against the base project and the app's own ADS SCRIPTS and working checklist, including AdMob IDs, package/tokens, Remote Config, Application init order, preload/load/show flow, Activity-vs-Fragment screen structure, or webhook-ready compliance reports. Accepts local CSVs or Google Sheets/Docs links.
 ---
 
 # Infinity Ads Compliance Audit
 
-Treat the supplied CSVs as the app-specific contract. Treat the bundled base rules as the required integration architecture. Do not claim a placement passes without evidence.
+Audit an Android app against the Infinity ads base. The two supplied documents
+are the app-specific contract; the bundled references are the required
+architecture. Never claim a placement passes without evidence in the code.
+
+The audit reads the project. It never modifies app source.
+
+## Inputs
+
+Two documents, each either a local file or a Google Sheets/Docs share link:
+
+| Document | Carries |
+| --- | --- |
+| **ADS SCRIPTS** | placement key, ad type, ad-unit ID, AdMob APP ID |
+| **working checklist** | app name, package, Firebase project, Adjust/Facebook/TikTok tokens |
+
+If either is missing, ask the partner for it. Never substitute base IDs.
 
 ## Run the audit
 
-1. Confirm the partner project contains its `ADS SCRIPTS` CSV and working-file CSV. If either is unavailable, ask for it; never substitute base IDs.
-2. Run the bundled auditor yourself from the partner project root. Resolve `scripts/run_audit.py` relative to the directory containing this `SKILL.md`; do not assume the skill lives under a fixed path, because Antigravity (`~/.gemini/antigravity/skills`), Codex (`~/.agents/skills`), and Claude Code (`~/.claude/skills`) use different skill locations. The Python runner auto-discovers one CSV of each kind, so the partner only needs to ask the AI host to check; never require them to type a terminal command.
+Resolve `scripts/run_audit.py` relative to the directory holding this
+`SKILL.md`. Skill locations differ per host — Claude Code
+(`~/.claude/skills`), Codex (`~/.agents/skills`), Antigravity
+(`~/.gemini/antigravity/skills`) — so never assume a fixed path.
+
+Run it yourself from the app root. Do not ask the partner to type commands.
 
 ```bash
-python3 "/absolute/path/to/this-skill/scripts/run_audit.py" \
-  --project .
+python3 "/absolute/path/to/this-skill/scripts/run_audit.py" --project .
 ```
 
-If discovery reports zero or multiple candidates, rerun with explicit `--ads-script` and `--working-file` paths. Explicit paths always override discovery.
-
-CSV layouts may vary by partner. Prefer recognized aliases, including working-file pairs such as `Task Detail / Document`, `Content / Detail`, and `Field / Value`; otherwise use the bundled parser's guarded content inference. If the parser reports an ambiguous layout, stop and request a clearer header or explicit mapping. Never guess between tied columns.
-
-If the skill directory cannot be resolved, use the published fallback from the project root instead:
+Both documents are auto-discovered from CSV files in the project. Pass them
+explicitly when discovery finds zero or several candidates, or when the partner
+gives you links:
 
 ```bash
-npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit --project .
+python3 "/absolute/path/to/this-skill/scripts/run_audit.py" --project . \
+  --ads-script   "https://docs.google.com/spreadsheets/d/<id>/edit#gid=0" \
+  --working-file "https://docs.google.com/document/d/<id>/edit"
 ```
 
-3. Read `ads-audit-summary.md` and `ads-audit-evidence.json` in `ads-audit-output/`.
-4. Read [base integration rules](references/base-integration-rules.md) and [placement mapping](references/placement-rule-map.yaml). Inspect every `FAIL`, `NEEDS_MAPPING`, and `NEEDS_RUNTIME_PROOF` against the code before reporting.
+Links must be shared as anyone-with-the-link viewer. A sign-in page comes back
+as a sharing error, not as data. Explicit values always override discovery.
+
+CSV layouts vary by partner. The parser prefers known aliases (`Task Detail /
+Document`, `Content / Detail`, `Field / Value`, and Vietnamese equivalents),
+then falls back to guarded content inference. If it reports an ambiguous
+layout, stop and ask for a clearer header — never guess between tied columns.
+
+Then read `ads-audit-output/ads-audit-summary.md` and
+`ads-audit-evidence.json`, and check every `FAIL`, `NEEDS_MAPPING`, and
+`NEEDS_RUNTIME_PROOF` against the actual code before reporting.
+
+## Reference material
+
+- [base code reference](references/base-code-reference.md) — the real base
+  implementation: Gradle setup, `GlobalApp`, `AdsManager`, every screen, gates,
+  `ad_config.json` schema. Read this before judging whether code is correct.
+- [base integration rules](references/base-integration-rules.md) — the rules in
+  checklist form.
+- [placement mapping](references/placement-rule-map.yaml) — approved class and
+  call evidence per placement.
 
 ## Required review scope
 
-Follow this route in order: `Application` → Splash → Language → Onboarding → Home/Banner → Resume/Welcome → configured post-onboarding screens. Check:
+Follow the journey in order: `Application` → Splash → Language → Onboarding →
+Home/Banner → Resume/Welcome.
 
-- `Application` initializes `MobileAds`, `DevConfig`, local `AdRemoteConfig`, and `ERainAd` in the prescribed order.
-- `Application` declares DevConfig version `BuildConfig` fields, ERain environment, Adjust/Facebook/TikTok config, interstitial interval, AppOpen exclusions, lifecycle observer, and activity callbacks.
-- Primary ads-journey screens use separate `Activity` classes. If Splash, Language, Onboarding, Home, or Welcome is implemented as a single-`Activity` navigation flow using screen `Fragment`s, return `ARCH_PRIMARY_SCREENS_ACTIVITY` as `FAIL` and require migration to the base Activity structure. Do not flag small UI-only fragments.
-- Every CSV key/ID exists in release `ad_config.json` and matches exactly; debug/test IDs in `ad_config_debug.json` are not compared with the production contract.
-- `SplashActivity` keeps consent/RemoteConfig loading, applies `AdRemoteConfig.initialize(this, RemoteConfigUtils.getAdRemoteConfig())`, loads `inter_splash`, preloads native language only from splash `onAdLoaded`, navigates only from `onNextAction`/fallback, and configures `open_resume`.
-- `LanguageActivity` keeps DevSetting entry on `tvTitle`, 100ms preload, native language/click observers, onboarding page-1 preload, render/hide behavior, and correct next navigation.
-- `OnBoardingActivity` keeps page setup, native page 4/full preload, `inter_onboarding` preload/show, widget gate, final callback navigation, and onboarding page LiveData rendering.
-- `ResumeAdsEntryRule` and `AppLifecycleObserver` keep the open-resume vs Welcome decision, disabled-screen list, interstitial/purchase/UA gates, and Welcome routing.
-- `WelcomeActivity` loads native/inter Welcome, observes native Welcome, renders/hides native ad, and shows inter Welcome from CTA with callback finish.
-- `BaseActivityWithBanner` keeps `BannerConfig`, `AdsManager.loadBanner`, isEnable/purchase/container gates, and `reloadIntervalSeconds` reload behavior.
-- Each mapped placement loads/shows through the central manager with enable, purchase, network, and required UA gates.
-- Interstitial callbacks continue navigation only after close/fail and preserve the configured interval.
-- For CSV key `inter_welcome_back`, require this complete chain: the registered resume observer checks `ResumeAdsEntryRule.shouldShowWelcomeOnResume()` and `getShouldDisplayInterWelcomeBack(config.enableUaCheck)`, routes to Welcome, then Welcome loads/shows through `AdsManager`. Require runtime proof that it does not duplicate an App Open ad.
-- Every CSV placement that lacks an approved class/event mapping stays `NEEDS_MAPPING`; do not call it a failure or a pass.
-- Every user-event requirement that static analysis cannot prove stays `NEEDS_RUNTIME_PROOF` and includes an executable test case.
+**Initialization.** `GlobalApp.onCreate` runs `MobileAds.initialize` →
+`DevConfig.init` → `AdRemoteConfig.initializeFromAssets` → `ERainAd.init`, in
+that order. `DevConfig.init` receives the three `BuildConfig` version fields
+(the parameter is named `nkhStudioVersion` but takes `ERAIN_STUDIO_VERSION`).
+`initAds` sets environment, `AdjustConfig`, `facebookClientToken`,
+`adjustTokenTiktok`, `intervalInterstitialAd = 35`, `idAdResume`, the AppOpen
+exclusions, the lifecycle observer, and the activity callbacks. Secrets come
+from string resources, never inline literals.
 
-## Pipeline checks
+**Screen structure.** Splash, Language, Onboarding, Home, and Welcome must be
+separate `Activity` classes. If any of them is a `Fragment` inside a
+single-Activity navigation graph, report `ARCH_PRIMARY_SCREENS_ACTIVITY` as
+`FAIL` and require migration. A `Fragment` used as a *page inside* one of those
+Activities — `OnboardingPageFragment` in a `ViewPager2` — is correct base
+structure, not a violation.
 
-The auditor statically checks:
+**Config.** Every CSV key/ID exists in release `ad_config.json` and matches
+exactly. `ad_config_debug.json` is deliberately different and is never compared
+with the production contract. The AdMob app id comes from the **release**
+`manifestPlaceholders`; the debug block legitimately holds Google's test id.
 
-- identity/config: package, app name from default `res/values/strings.xml`, AdMob app id, Firebase project, required service tokens, and release `ad_config.json` (debug/test config is not used for contract ID equality);
-- base architecture: `ARCH_GLOBAL_INIT_ORDER`, `ARCH_DEV_CONFIG_INIT`, `ARCH_DEV_CONFIG_BUILD_FIELDS`, `ARCH_ADS_CONFIG_FIELDS`, `ARCH_APP_OPEN_EXCLUSIONS`, `ARCH_ADS_MANAGER_*`, `ARCH_BANNER_BASE_RELOAD`;
-- screen flow: `FLOW_SPLASH_*`, `FLOW_LANGUAGE_*`, `FLOW_ONBOARDING_*`, `FLOW_RESUME_RULE`, `FLOW_WELCOME_NATIVE_AND_INTER`, `FLOW_INTER_WELCOME_BACK_*`;
-- placement mapping: configured CSV placements mapped to approved class/method evidence;
-- runtime proof: user-event and lifecycle cases static source cannot prove.
+**Preload.** Splash preloads the Language native only from the splash
+interstitial's `onAdLoaded`. Language preloads onboarding page 1 after its 100 ms
+`postDelayed`. Onboarding preloads native page 4, native full, and
+`inter_onboarding` after its own 100 ms delay. Moving a preload earlier or later
+changes fill rate and is a finding.
+
+**Load.** Every native load goes through the central `AdsManager` helper with
+all four gates: `isEnable`, purchase, network, and the placement's
+`getShouldDisplay*(config.enableUaCheck)`. On any refusal or failure the
+LiveData is set to `null` so the container hides. `getShouldDisplayInterWelcomeBack`
+lives in `AppLifecycleObserver`, not in `AdsManager`.
+
+**Show.** Interstitials continue navigation only through the close/fail
+callback, and the show path always has an `else { onAction() }` so the user
+still advances when no ad is ready. The configured interval stays at 35 s.
+
+**Render.** Natives observe a `LiveData`, call `populateNativeAdView` when
+non-null, and hide the container when null or offline. Fragments observe with
+`viewLifecycleOwner`. Language swaps between its two observers with
+`removeObservers` so both are never active at once.
+
+**Resume/Welcome.** `ResumeAdsEntryRule` picks App Open or Welcome and they are
+mutually exclusive — `open_resume` wins when enabled — so an App Open ad and a
+Welcome interstitial never stack. `AppLifecycleObserver` applies the disabled-screen
+list, interstitial, purchase, and UA gates before routing to Welcome. Note the
+two exclusion lists differ: AppOpen excludes Splash/Language/OnBoarding/ConfirmUninstall;
+Welcome routing excludes Splash/Language/OnBoarding/Welcome/Survey.
+
+**Banner.** `BaseActivityWithBanner` gates on `isEnable`, purchase, and the
+`fr_banner` container, honours `reloadIntervalSeconds`, and tears down its
+handler in `onPause`/`onDestroy`.
+
+**Unresolved items.** A CSV placement with no approved class/event mapping stays
+`NEEDS_MAPPING` — neither pass nor failure. A user-event or lifecycle claim
+static analysis cannot settle stays `NEEDS_RUNTIME_PROOF` and must carry an
+executable test case.
 
 ## Exceptions and new placements
 
-For a class name, user event, or placement not inferable from CSV text, copy `templates/ads-audit-overrides.yaml` into the partner project and add an Infinity-approved mapping. Preserve the CSV key and ID exactly. A new key may differ from the base project; its architecture must still follow the base pattern.
+For a class, event, or placement not inferable from the CSV, copy
+`templates/ads-audit-overrides.yaml` into the app and add an Infinity-approved
+mapping. Preserve the CSV key and ID exactly. A new key may differ from the base
+project, but its architecture must still follow the base pattern.
 
 ## Webhook
 
-After local report generation, the bundled Discord webhook receives the MKT payload and `ads-audit-summary.md` attachment automatically. Use `--no-webhook` only when the partner explicitly asks for a local-only audit. `--webhook-url` overrides the embedded endpoint when Infinity authorizes another destination. Do not paste tokens into reports or chat. The payload follows [report schema](references/report-schema.json), includes `ten_app` and `package_name`, and gives MKT a short Vietnamese error list without secrets or `app-ads.txt` checks. In Discord, each error must render compactly: title immediately followed by bold `**Mô tả:**` with no blank line, plain-language details about the exact broken flow, then bold `**Cách sửa:**` on its own line with concrete developer actions. If the report is too long for one Discord message, split it into multiple messages named `Ads Audit chi tiết (2/N)`, `Ads Audit chi tiết (3/N)`, etc.; attach `ads-audit-summary.md` only to the first message.
+After the local report is written, the bundled Discord webhook receives the MKT
+payload and `ads-audit-summary.md`. Use `--no-webhook` only when the partner
+asks for a local-only audit. `--webhook-url`, or `ADS_AUDIT_WEBHOOK_URL` /
+`DISCORD_WEBHOOK_URL`, override the embedded endpoint when Infinity authorises
+another destination.
+
+The payload follows [report schema](references/report-schema.json), carries
+`ten_app` and `package_name`, and gives MKT a short Vietnamese error list with
+no secrets and no `app-ads.txt` checks. Each Discord error renders compactly:
+title, then bold `**Mô tả:**` with no blank line, plain-language detail about the
+broken flow, then bold `**Cách sửa:**` on its own line with concrete developer
+actions. If the report exceeds one message, split into `Ads Audit chi tiết
+(2/N)`, `(3/N)`, and attach the summary to the first message only.
 
 ## Partner-facing result format
 
-Return this short format, in the partner's requested language:
+Reply in the partner's language, in this shape:
 
 ```text
 Result: BLOCKED | REVIEW_REQUIRED

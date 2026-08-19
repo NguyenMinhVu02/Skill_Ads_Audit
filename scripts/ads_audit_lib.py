@@ -669,25 +669,49 @@ def _load_overrides(path: Path | None) -> dict[str, dict[str, str]]:
 
 def _check_flow(report: AuditReport, root: Path, contract: AuditContract, source_paths: list[Path], overrides: dict[str, dict[str, str]]) -> None:
     source = _combined_text(source_paths)
+    # Call sites verified against the Infinity base project (see
+    # references/base-code-reference.md). A placement marked optional is one the
+    # base wires through AdsManager but leaves for the app to place on a screen;
+    # a missing call there is NEEDS_MAPPING, not a failure.
     known = {
         "inter_splash": ("SplashActivity", "loadSplashInterstitialAds"),
+        "open_resume": ("SplashActivity", "setAppResumeAdId"),
         "native_language_1": ("SplashActivity", "loadNativeLanguage"),
         "native_language_2": ("SplashActivity", "loadNativeLanguage"),
+        "native_language_1_click": ("LanguageActivity", "loadNativeLanguageClick"),
+        "native_language_2_click": ("LanguageActivity", "loadNativeLanguageClick"),
         "native_onboarding_1_1": ("LanguageActivity", "loadNativeOnboarding1"),
         "native_onboarding_2_1": ("LanguageActivity", "loadNativeOnboarding1"),
         "native_onboarding_1_4": ("OnBoardingActivity", "loadNativeOnboarding4"),
         "native_onboarding_2_4": ("OnBoardingActivity", "loadNativeOnboarding4"),
+        "native_onboarding_fullscreen_1_3": ("OnBoardingActivity", "loadNativeOnboardingFull"),
+        "native_onboarding_fullscreen_2_3": ("OnBoardingActivity", "loadNativeOnboardingFull"),
         "inter_onboarding": ("OnBoardingActivity", "showInterOnboarding"),
+        "native_welcome": ("WelcomeActivity", "loadNativeWelcome"),
+        "inter_welcome": ("WelcomeActivity", "showInterWelcome"),
         "inter_welcome_back": ("AppLifecycleObserver", "getShouldDisplayInterWelcomeBack"),
-        "native_home": ("MainActivity", "loadNativeHome"),
+        "native_survey": ("SurveyActivity", "loadNativeSurvey"),
+        "native_confirm_uninstall": ("ConfirmUninstallActivity", "loadNativeConfirmUninstall"),
         "banner_home": ("MainActivity", "banner_home"),
+    }
+    # Provided by AdsManager in the base; the screen that shows them is app-specific.
+    optional_screen = {
+        "native_home": ("MainActivity", "loadNativeHome"),
+        "native_permission": ("AdsManager", "loadNativePermission"),
+        "native_onboarding_fullscreen_1_4": ("AdsManager", "loadNativeOnboardingFull2"),
+        "native_onboarding_fullscreen_2_4": ("AdsManager", "loadNativeOnboardingFull2"),
+        "banner_splash": ("AdsManager", "loadBanner"),
+        "reward_example": ("AdsManager", "loadAndShowReward"),
     }
     for placement in contract.placements.values():
         rule_id = f"PLACEMENT_FLOW:{placement.name}"
         mapping = known.get(placement.name)
+        is_optional = False
+        if mapping is None and placement.name in optional_screen:
+            mapping, is_optional = optional_screen[placement.name], True
         override = overrides.get(placement.name)
         if override and override.get("class") and (override.get("show_call") or override.get("load_call")):
-            mapping = (override["class"], override.get("show_call") or override["load_call"])
+            mapping, is_optional = (override["class"], override.get("show_call") or override["load_call"]), False
         if mapping is None:
             report.findings.append(Finding.needs_mapping(rule_id, placement.description or "project-specific placement", "no approved class/event mapping", f"Add `{placement.name}` to `ads-audit-overrides.yaml` with class and required call/event evidence."))
             continue
@@ -696,6 +720,8 @@ def _check_flow(report: AuditReport, root: Path, contract: AuditContract, source
         matching = next((path for path in class_files if call in _read(path)), None)
         if matching:
             report.findings.append(Finding.pass_(rule_id, "placement_flow", f"{class_name} calls {call}", f"found {call}", _line_ref(root, matching, call)))
+        elif is_optional:
+            report.findings.append(Finding.needs_mapping(rule_id, f"a screen loads {call}", f"{call} is not called from {class_name}", f"Point `{placement.name}` at the screen that shows it in `ads-audit-overrides.yaml`, or wire it through `AdsManager.{call}`."))
         elif class_files:
             report.findings.append(Finding.fail(rule_id, "placement_flow", f"{class_name} calls {call}", "call not found", f"Implement this placement through `AdsManager` at the configured lifecycle/event point.", str(class_files[0].relative_to(root))))
         else:
@@ -1023,7 +1049,7 @@ def _check_screen_flow_rules(report: AuditReport, root: Path, source_paths: list
     )
 
 
-def _check_ads_manager_base_rules(report: AuditReport, root: Path, manager_paths: list[Path], manager_text: str) -> None:
+def _check_ads_manager_base_rules(report: AuditReport, root: Path, manager_paths: list[Path], manager_text: str, resume_text: str = "") -> None:
     manager_path = manager_paths[0] if manager_paths else None
     _check_tokens(
         report,
@@ -1044,8 +1070,10 @@ def _check_ads_manager_base_rules(report: AuditReport, root: Path, manager_paths
         "getShouldDisplayInterOnboarding",
         "getShouldDisplayInterWelcomeBack",
     )
-    missing_ua = _missing_tokens(manager_text, required_ua_methods)
-    hardcoded = re.findall(r"getShouldDisplay[A-Za-z0-9_]*\(\s*(?:true|false)\s*\)", manager_text)
+    # The base calls getShouldDisplayInterWelcomeBack from AppLifecycleObserver,
+    # not from AdsManager, so the resume/observer sources count as evidence too.
+    missing_ua = _missing_tokens(manager_text + "\n" + resume_text, required_ua_methods)
+    hardcoded = re.findall(r"getShouldDisplay[A-Za-z0-9_]*\(\s*(?:true|false)\s*\)", manager_text + "\n" + resume_text)
     if missing_ua or hardcoded:
         observed = []
         if missing_ua:
@@ -1092,6 +1120,32 @@ def _check_ads_manager_base_rules(report: AuditReport, root: Path, manager_paths
     )
 
 
+def _release_admob_app_id(gradle_text: str) -> str | None:
+    """Read the AdMob app id from the release build type only.
+
+    Debug deliberately carries Google's public test app id
+    (`ca-app-pub-3940256099942544~3347511713`), so matching the first id in the
+    file reports a failure against a value that is supposed to differ.
+    """
+    release = re.search(r"\brelease\s*\{", gradle_text)
+    if release:
+        depth, index = 0, release.end() - 1
+        while index < len(gradle_text):
+            char = gradle_text[index]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            index += 1
+        block = gradle_text[release.end():index]
+        found = _first_match(r'app_id\s*[:=]\s*["\'](ca-app-pub-[^"\']+)', block)
+        if found:
+            return found
+    return _first_match(r'app_id\s*[:=]\s*["\'](ca-app-pub-[^"\']+)', gradle_text)
+
+
 def inspect_project(root: str | Path, contract: AuditContract, checklist: ProjectChecklist, overrides_path: str | Path | None = None) -> AuditReport:
     root = Path(root).resolve()
     report = AuditReport(str(root), contract, checklist)
@@ -1105,7 +1159,7 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
     manifest_text = _combined_text(manifests)
     package = _first_match(r'applicationId\s*[=(]?\s*["\']([^"\']+)', gradle_text) or _first_match(r'namespace\s*[=(]?\s*["\']([^"\']+)', gradle_text)
     _check_equal(report, "APP_PACKAGE", "identity", checklist.package_name, package, "Set `applicationId` and `namespace` to the package name in the working checklist.")
-    app_id = _first_match(r'app_id\s*[:=]\s*["\'](ca-app-pub-[^"\']+)', gradle_text)
+    app_id = _release_admob_app_id(gradle_text)
     _check_equal(report, "ADMOB_APP_ID", "identity", contract.admob_app_id, app_id, "Set the AdMob manifest placeholder to the ADS Script APP ID.")
     if "com.google.android.gms.ads.APPLICATION_ID" not in manifest_text:
         report.findings.append(Finding.fail("ADMOB_MANIFEST_META", "identity", "AdMob APPLICATION_ID meta-data", "missing", "Add the Google Mobile Ads APPLICATION_ID meta-data entry to AndroidManifest.xml."))
@@ -1144,7 +1198,12 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
     else:
         report.findings.append(Finding.fail("ARCH_ADS_MANAGER", "architecture", "central AdsManager", "not found", "Centralize placement load/show logic in AdsManager."))
     manager_text = _combined_text(manager_paths)
-    _check_ads_manager_base_rules(report, root, manager_paths, manager_text)
+    resume_paths = [path for path in source_paths if path.name in {
+        "AppLifecycleObserver.kt", "AppLifecycleObserver.java",
+        "ResumeAdsEntryRule.kt", "ResumeAdsEntryRule.java",
+    }]
+    resume_text = _combined_text(resume_paths)
+    _check_ads_manager_base_rules(report, root, manager_paths, manager_text, resume_text)
     for rule_id, token, fix in (
         ("ARCH_ENABLE_GATE", ".isEnable", "Check `config.isEnable` before each load/show."),
         ("ARCH_PURCHASE_GATE", "AppPurchase.getInstance().isPurchased", "Skip ads for purchased users in the central manager."),
@@ -1155,10 +1214,17 @@ def inspect_project(root: str | Path, contract: AuditContract, checklist: Projec
             report.findings.append(Finding.pass_(rule_id, "architecture", token, "found"))
         else:
             report.findings.append(Finding.fail(rule_id, "architecture", token, "not found in AdsManager", fix))
-    if "fun showInterOnboarding" in manager_text and re.search(r"showInterOnboarding[\s\S]{0,900}?&&\s*\(?\s*ignoreLimit\s*\)?", manager_text):
-        report.findings.append(Finding.fail("FLOW_INTER_ONBOARDING_SHOW", "placement_flow", "normal onboarding can show its loaded interstitial", "show condition requires `ignoreLimit`", "Replace the debug-only `ignoreLimit` show condition with the normal config/UA gate; retain navigation in the close/fail callback."))
-    if "fun showInterWelcome" in manager_text and re.search(r"showInterWelcome[\s\S]{0,900}?&&\s*\(?\s*ignoreLimit\s*\)?", manager_text):
-        report.findings.append(Finding.fail("FLOW_INTER_WELCOME_SHOW", "placement_flow", "normal Welcome can show its loaded interstitial", "show condition requires `ignoreLimit`", "Replace the debug-only `ignoreLimit` show condition with the normal config/UA gate; retain finish/navigation in the close/fail callback."))
+    # The Infinity base project gates showInterOnboarding/showInterWelcome on
+    # `ignoreLimit`. That is the approved base pattern, not a defect, so the
+    # shape of the show condition is not checked here. Whether an interstitial
+    # actually appears is a runtime claim, raised by the placement rules below.
+    for show_fun, rule_id in (("fun showInterOnboarding", "FLOW_INTER_ONBOARDING_SHOW"), ("fun showInterWelcome", "FLOW_INTER_WELCOME_SHOW")):
+        if show_fun in manager_text:
+            fallback = re.search(re.escape(show_fun) + r"[\s\S]{0,1200}?else\s*\{\s*onAction\(\)", manager_text)
+            if fallback:
+                report.findings.append(Finding.pass_(rule_id, "placement_flow", "show path always continues navigation when the ad is unavailable", "else branch calls onAction()"))
+            else:
+                report.findings.append(Finding.fail(rule_id, "placement_flow", "show path always continues navigation when the ad is unavailable", "no else branch calling onAction()", "Add an `else { onAction() }` branch so the user still advances when the interstitial is missing or not ready."))
     if re.search(r"intervalInterstitialAd\s*=\s*35\b", global_text):
         report.findings.append(Finding.pass_("ARCH_INTERSTITIAL_INTERVAL", "architecture", "35-second interstitial interval", "found", _line_ref(root, global_app, "intervalInterstitialAd")))
     else:

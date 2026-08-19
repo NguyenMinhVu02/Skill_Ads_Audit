@@ -1,6 +1,8 @@
 # ADS SCRIPTS.csv remains authoritative for app-specific keys and IDs.
 # This file documents the approved base implementation evidence expected by
-# the static auditor and by manual reviewers.
+# the static auditor and by manual reviewers. Verified against the Infinity
+# base project TestSill (com.itg.template); see base-code-reference.md for the
+# corresponding code.
 
 base_pipeline:
   application:
@@ -74,6 +76,11 @@ base_pipeline:
         callback: Routes.startMainActivity
       - key_family: uninstall_widget
         gate: ERainAd.getInstance().getShouldDisplayWidgetUninstall(config.enableUaCheck)
+      - key_family: native_onboarding_fullscreen_4
+        call: AdsManager.loadNativeOnboardingFull2
+        live_data: AdsManager.nativeAdOnBoardingFull2Live
+        gate: ERainAd.getInstance().getShouldDisplayNativeOnboardingFull2(config.enableUaCheck)
+        optional: true   # provided by AdsManager, screen wiring is app-specific
 
   onboarding_page:
     class: OnboardingPageFragment
@@ -87,6 +94,12 @@ base_pipeline:
   resume_welcome:
     rule_class: ResumeAdsEntryRule
     observer_class: AppLifecycleObserver
+    # ResumeAdsEntryRule makes OPEN_RESUME and WELCOME mutually exclusive
+    # (open_resume wins when enabled); that is what prevents AppOpen stacking
+    # on top of the Welcome interstitial.
+    modes: [OPEN_RESUME, WELCOME, NONE]
+    # AppOpen exclusions in GlobalApp.initAds() are a DIFFERENT list:
+    # SplashActivity, LanguageActivity, OnBoardingActivity, ConfirmUninstallActivity
     disabled_screens:
       - SplashActivity
       - LanguageActivity
@@ -219,3 +232,39 @@ known_placements:
       - Routes.startWelcomeActivity
       - WelcomeActivity:AdsManager.loadInterWelcome
       - WelcomeActivity:AdsManager.showInterWelcome
+
+# Placements the base provides in AdsManager but does not wire to a screen.
+# A contract entry with no call site here is NEEDS_MAPPING, never a failure.
+optional_placements:
+  native_home:
+    manager_call: AdsManager.loadNativeHome
+    suggested_class: MainActivity
+    gate: getShouldDisplayNativeHome
+    live_data: AdsManager.nativeHomeAdLive
+  native_permission:
+    manager_call: AdsManager.loadNativePermission
+    gate: getShouldDisplayNativePermission
+    live_data: AdsManager.nativePermissionAdLive
+  native_onboarding_fullscreen_1_4:
+    manager_call: AdsManager.loadNativeOnboardingFull2
+    gate: getShouldDisplayNativeOnboardingFull2
+  native_onboarding_fullscreen_2_4:
+    manager_call: AdsManager.loadNativeOnboardingFull2
+    gate: getShouldDisplayNativeOnboardingFull2
+  banner_splash:
+    manager_call: AdsManager.loadBanner
+  reward_example:
+    manager_call: AdsManager.loadAndShowReward
+
+# Verified call sites in the base project.
+known_placements_extra:
+  native_survey:
+    class: SurveyActivity
+    call: AdsManager.loadNativeSurvey
+    gate: getShouldDisplayWidgetUninstall
+    live_data: AdsManager.nativeSurveyAdLive
+  native_confirm_uninstall:
+    class: ConfirmUninstallActivity
+    call: AdsManager.loadNativeConfirmUninstall
+    gate: getShouldDisplayWidgetUninstall
+    live_data: AdsManager.nativeConfirmUninstallAdLive

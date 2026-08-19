@@ -20,6 +20,7 @@ from ads_audit_lib import (  # noqa: E402
     redact_value,
 )
 import run_audit  # noqa: E402
+import doc_sources  # noqa: E402
 import package_skill  # noqa: E402
 
 
@@ -220,6 +221,61 @@ class AdsAuditTest(unittest.TestCase):
             "fun shouldReloadBanner(): Boolean { val distanceReloadBanner = bannerConfig.adUnitConfig.reloadIntervalSeconds ?: 0; return shouldShowBanner() && distanceReloadBanner > 0 } fun cleanupHandler(){ reloadBannerHandler?.removeCallbacksAndMessages(null) } }",
             encoding="utf-8",
         )
+
+    def test_google_sheet_link_becomes_a_csv_export_url(self):
+        url = "https://docs.google.com/spreadsheets/d/1AbC_x-9/edit#gid=42"
+        self.assertEqual(
+            doc_sources.export_url(url),
+            ("https://docs.google.com/spreadsheets/d/1AbC_x-9/export?format=csv&gid=42", "csv"),
+        )
+        self.assertEqual(
+            doc_sources.export_url("https://docs.google.com/spreadsheets/d/1AbC_x-9/edit")[0],
+            "https://docs.google.com/spreadsheets/d/1AbC_x-9/export?format=csv&gid=0",
+        )
+
+    def test_google_doc_link_exports_plain_text(self):
+        url, kind = doc_sources.export_url("https://docs.google.com/document/d/1XyZ/edit")
+        self.assertEqual(kind, "txt")
+        self.assertEqual(url, "https://docs.google.com/document/d/1XyZ/export?format=txt")
+
+    def test_doc_text_becomes_working_checklist_csv(self):
+        csv_text = doc_sources.doc_text_to_csv(
+            "Checklist\n"
+            "App name: Demo Player\n"
+            "Package name\tcom.example.player\n"
+            "This line is prose and must be dropped\n"
+            "- Firebase: https://console.firebase.google.com/project/demo-player/overview\n"
+        )
+        checklist = parse_working_file(self._write(csv_text))
+        self.assertEqual(checklist.app_name, "Demo Player")
+        self.assertEqual(checklist.package_name, "com.example.player")
+        self.assertEqual(checklist.firebase_project, "demo-player")
+
+    def test_doc_without_label_value_lines_is_rejected(self):
+        with self.assertRaises(doc_sources.DocumentError):
+            doc_sources.doc_text_to_csv("just prose\nmore prose\n")
+
+    def test_login_page_response_is_reported_as_sharing_problem(self):
+        with patch.object(doc_sources, "_download", return_value=b"<html><a href='https://accounts.google.com'>Sign in</a>"):
+            with self.assertRaises(doc_sources.DocumentError) as caught:
+                doc_sources.resolve_document(
+                    "https://docs.google.com/spreadsheets/d/1AbC/edit", "ads-script", self.root / "docs"
+                )
+        self.assertIn("sign-in", str(caught.exception))
+
+    def test_url_input_is_downloaded_and_parsed(self):
+        payload = self.ads_csv.read_bytes()
+        with patch.object(doc_sources, "_download", return_value=payload):
+            resolved = run_audit.resolve_csv_input(
+                self.root, "https://docs.google.com/spreadsheets/d/1AbC/edit#gid=7", "ads", self.root / "docs"
+            )
+        self.assertTrue(resolved.is_file())
+        self.assertIn("inter_splash", parse_ads_script(resolved).placements)
+
+    def _write(self, text):
+        path = self.root / "from-doc.csv"
+        path.write_text(text, encoding="utf-8")
+        return path
 
     def test_parses_contract_and_project_checklist(self):
         contract = parse_ads_script(self.ads_csv)
