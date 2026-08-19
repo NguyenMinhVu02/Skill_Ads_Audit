@@ -60,7 +60,11 @@ export function discoverCsv(projectRoot, kind) {
   }
   if (matches.length > 1) {
     const listed = matches.map((candidate) => `  - ${path.relative(root, candidate) || candidate}`).join("\n");
-    throw new Error(`Found multiple ${label} CSV files. Pass ${flag} explicitly:\n${listed}`);
+    throw new Error(
+      `Found several ${label} candidates, so discovery will not choose one.\n${listed}\n` +
+      `Pass the right one with ${flag}. If it is not obvious which is current, ` +
+      `ask the partner before auditing — auditing the wrong revision is worse than asking.`
+    );
   }
   return matches[0];
 }

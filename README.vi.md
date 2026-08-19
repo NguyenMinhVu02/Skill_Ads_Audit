@@ -90,6 +90,25 @@ trên nội dung — package name, URL Firebase, loại quảng cáo, ad-unit ID
 khai báo rõ luôn được ưu tiên, và nếu hai cột có độ tin cậy ngang nhau thì audit
 **dừng lại và báo**, thay vì chấm nhầm dữ liệu.
 
+### Tài liệu được xin như thế nào
+
+Skill không bao giờ audit khi thiếu tài liệu, và không bao giờ đoán. Nó đi lần
+lượt theo 3 tầng:
+
+| Tầng | Tình huống | Điều xảy ra |
+| --- | --- | --- |
+| **1** | 2 file CSV đã có sẵn trong project | Tự tìm thấy. Bạn không bị hỏi gì cả. |
+| **2** | Thiếu tài liệu và chưa đưa link | AI hỏi xin cả 2 tài liệu — link hoặc file — **trước khi** chạy bất cứ thứ gì. |
+| **3** | Có link nhưng không có quyền truy cập | Audit dừng và đưa 2 cách gỡ: đổi chế độ chia sẻ, hoặc tải file về rồi đưa đường dẫn. |
+
+Nếu qua tầng 3 vẫn không có tài liệu, audit **dừng hẳn và báo rõ**. Nó sẽ không
+xuất báo cáo nửa vời, không bịa ad-unit ID, không lấy giá trị của project base
+thay thế — một bản audit thiếu dữ liệu nhưng trông như kết luận thì tệ hơn là
+không audit.
+
+Phần tự tìm file cũng không đoán bừa: không thấy file nào, hoặc thấy nhiều file
+cùng lúc, đều rơi xuống tầng 2 chứ không tự chọn một cái.
+
 ## Kiểm tra những gì
 
 Bộ rule được hiệu chỉnh theo project base Infinity, để một app làm đúng sẽ đạt

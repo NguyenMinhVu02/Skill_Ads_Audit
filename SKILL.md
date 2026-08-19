@@ -22,37 +22,43 @@ Two documents, each either a local file or a Google Sheets/Docs share link:
 
 Never substitute base IDs, and never audit with only one of the two.
 
-### Getting the documents
+### Getting the documents — three tiers
 
-Resolve inputs in this order, and stop to ask rather than guessing:
+Work down the tiers. Never skip to auditing because a document is hard to get.
 
-1. **Already in the project.** Two CSV files, one named `ADS SCRIPTS`, one named
-   `working` / `work file`. Auto-discovered — nothing to ask.
-2. **Nothing found, or the partner gave no link.** Ask for both documents
-   before running anything:
+**Tier 1 — already in the project. Ask nothing.**
+Two CSV files, one filename containing `ADS SCRIPTS`, one containing `working`
+or `work file`. The auditor discovers them itself. Just run it. Discovery
+refuses to guess when it finds zero or several candidates, which drops you to
+tier 2 or to an explicit path.
 
-   > Gửi giúp mình 2 tài liệu: link Google Sheets/Docs của **ADS SCRIPTS** và
-   > của **working checklist** (để chế độ *Bất kỳ ai có link* → *Người xem*).
-   > Hoặc tải sẵn 2 file CSV về máy rồi cho mình đường dẫn.
+**Tier 2 — not in the project and no link given. Ask, before running anything.**
+Ask for both documents in one message, in the partner's language:
 
-   Do not run a partial audit, do not invent IDs, and do not fall back to the
-   base project's values.
-3. **A link was given but access is denied.** The auditor stops with a sharing
-   error. Relay both options to the partner, in their language:
+> Gửi giúp mình 2 tài liệu: link Google Sheets/Docs của **ADS SCRIPTS** và
+> của **working checklist** (để chế độ *Bất kỳ ai có link* → *Người xem*).
+> Hoặc tải sẵn 2 file CSV về máy rồi cho mình đường dẫn.
 
-   - Open the link → **Share** → **General access** → *Anyone with the link*
-     (Viewer), then tell you to rerun; or
-   - Download it themselves — **File → Download → Comma Separated Values (.csv)**
-     for a Sheet, **Plain text (.txt)** for a Doc — save it into the project
-     folder, and give you the file path. Then rerun with the local path in place
-     of the link.
+Ask for both at once, not one at a time. While waiting: do not run a partial
+audit, do not invent IDs, and do not fall back to the base project's values.
 
-   Both routes are equally valid. Prefer whichever the partner can do faster; a
-   downloaded CSV is often quicker than getting sharing changed on a company
-   Drive.
+**Tier 3 — a link was given but access is denied.**
+The auditor stops with a sharing error. Relay both routes and let the partner
+pick:
 
-4. **Still unavailable.** Stop and report that the audit cannot start. An audit
-   without its contract documents is not an audit.
+- Open the link → **Share** → **General access** → *Anyone with the link*
+  (Viewer), then tell you to rerun; or
+- Download it themselves — **File → Download → Comma Separated Values (.csv)**
+  for a Sheet, **Plain text (.txt)** for a Doc — save it into the project
+  folder, and give you the path. Rerun with that path in place of the link.
+
+Both are equally valid. A downloaded CSV is often faster than getting sharing
+changed on a company Drive, so lead with that when the partner seems blocked.
+
+**Stop rule.** If a document is still unavailable after tier 3, stop and report
+that the audit cannot start. An audit missing either contract document is not an
+audit — report that plainly rather than producing a partial result that reads
+like a verdict.
 
 ## Run the audit
 

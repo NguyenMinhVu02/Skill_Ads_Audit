@@ -61,7 +61,12 @@ def discover_csv(project: Path, kind: str) -> Path:
         )
     if len(matches) > 1:
         listed = "\n".join(f"  - {candidate.relative_to(project)}" for candidate in matches)
-        raise ValueError(f"Found multiple {label} CSV files. Pass {flag} explicitly:\n{listed}")
+        raise ValueError(
+            f"Found several {label} candidates, so discovery will not choose one.\n{listed}\n"
+            f"Pass the right one with {flag}. If it is not obvious which is current, "
+            f"ask the partner before auditing — auditing the wrong revision is worse "
+            f"than asking."
+        )
     return matches[0]
 
 

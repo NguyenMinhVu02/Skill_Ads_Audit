@@ -582,6 +582,7 @@ class AdsAuditTest(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.assertIn("--ads-script", stderr.getvalue())
+        self.assertIn("ask the partner", stderr.getvalue())
         self.assertIn(first.name, stderr.getvalue())
         self.assertIn(second.name, stderr.getvalue())
 

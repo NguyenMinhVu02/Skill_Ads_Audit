@@ -94,6 +94,25 @@ formats, ad-unit IDs. Explicit aliases always win, and if two columns are
 equally plausible the audit **stops and reports** rather than auditing the wrong
 data.
 
+### How the documents are requested
+
+The skill never audits without both documents, and it never guesses. It works
+down three tiers:
+
+| Tier | Situation | What happens |
+| --- | --- | --- |
+| **1** | Both CSVs already in the project | Discovered automatically. You are asked nothing. |
+| **2** | Missing, and no link given | The agent asks you for both documents — link or file — **before** running anything. |
+| **3** | Link given but access denied | The audit stops and offers two fixes: change link sharing, or download the file and pass its path. |
+
+If a document is still unavailable after tier 3, the audit **stops and says so**.
+It will not produce a partial report, invent ad-unit IDs, or fall back to the
+base project's values — a half-audit that reads like a verdict is worse than no
+audit.
+
+Discovery also refuses to guess between candidates: zero matches or several
+matches both drop to tier 2 rather than picking one.
+
 ## What gets checked
 
 Calibrated against the Infinity base project so that a correct app passes

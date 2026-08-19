@@ -33,6 +33,7 @@ test('multiple candidates fail with the explicit flag name', () => {
   fs.writeFileSync(path.join(root, 'ADS SCRIPTS.csv'), '');
   fs.writeFileSync(path.join(root, 'ADS SCRIPTS backup.csv'), '');
   assert.throws(() => discoverCsv(root, 'ads'), /--ads-script/);
+  assert.throws(() => discoverCsv(root, 'ads'), /ask the partner/);
 });
 
 test('missing document names both accepted input forms', () => {
