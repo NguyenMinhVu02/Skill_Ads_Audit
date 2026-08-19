@@ -51,7 +51,14 @@ def discover_csv(project: Path, kind: str) -> Path:
     flag = "--ads-script" if kind == "ads" else "--working-file"
     label = "ADS SCRIPTS" if kind == "ads" else "working-file"
     if not matches:
-        raise ValueError(f"Could not find a {label} CSV under {project}. Pass {flag} explicitly.")
+        raise ValueError(
+            f"Could not find the {label} document under {project}.\n"
+            f"Supply it with {flag}, as either:\n"
+            f"  - a Google Sheets/Docs share link (set to Anyone with the link, Viewer), or\n"
+            f"  - a path to a CSV downloaded from that document.\n"
+            f"If you do not have it, ask the partner for the {label} document before "
+            f"auditing. Do not audit without it and do not substitute base values."
+        )
     if len(matches) > 1:
         listed = "\n".join(f"  - {candidate.relative_to(project)}" for candidate in matches)
         raise ValueError(f"Found multiple {label} CSV files. Pass {flag} explicitly:\n{listed}")

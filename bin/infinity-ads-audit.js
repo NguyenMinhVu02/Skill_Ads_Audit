@@ -49,7 +49,14 @@ export function discoverCsv(projectRoot, kind) {
   const flag = kind === "ads" ? "--ads-script" : "--working-file";
   const label = kind === "ads" ? "ADS SCRIPTS" : "working-file";
   if (matches.length === 0) {
-    throw new Error(`Could not find a ${label} CSV under ${root}. Pass ${flag} "path/to/file.csv".`);
+    throw new Error(
+      `Could not find the ${label} document under ${root}.\n` +
+      `Supply it with ${flag}, as either:\n` +
+      `  - a Google Sheets/Docs share link (set to Anyone with the link, Viewer), or\n` +
+      `  - a path to a CSV downloaded from that document.\n` +
+      `If you do not have it, ask the partner for the ${label} document before ` +
+      `auditing. Do not audit without it and do not substitute base values.`
+    );
   }
   if (matches.length > 1) {
     const listed = matches.map((candidate) => `  - ${path.relative(root, candidate) || candidate}`).join("\n");

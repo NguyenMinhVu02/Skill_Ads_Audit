@@ -35,6 +35,13 @@ test('multiple candidates fail with the explicit flag name', () => {
   assert.throws(() => discoverCsv(root, 'ads'), /--ads-script/);
 });
 
+test('missing document names both accepted input forms', () => {
+  const root = fixture();
+  assert.throws(() => discoverCsv(root, 'ads'), /--ads-script/);
+  assert.throws(() => discoverCsv(root, 'ads'), /share link/);
+  assert.throws(() => discoverCsv(root, 'working'), /ask the partner/);
+});
+
 test('builds Python arguments with resolved CSV paths', () => {
   const args = buildAuditArgs('.', '/tmp/ads.csv', '/tmp/working.csv', ['--no-webhook']);
   assert.deepEqual(args, ['scripts/run_audit.py', '--project', '.', '--ads-script', '/tmp/ads.csv', '--working-file', '/tmp/working.csv', '--no-webhook']);

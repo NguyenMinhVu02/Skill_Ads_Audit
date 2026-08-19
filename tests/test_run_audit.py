@@ -297,6 +297,19 @@ class AdsAuditTest(unittest.TestCase):
                 )
         self.assertIn("pass the local path instead of the link", str(caught.exception))
 
+    def test_missing_document_tells_the_agent_to_ask_for_a_link_or_file(self):
+        empty = self.root / "empty-project"
+        (empty / "app").mkdir(parents=True)
+        stderr = io.StringIO()
+        with patch("sys.stderr", stderr):
+            result = run_audit.main(["--project", str(empty), "--output-dir", str(empty / "out"), "--no-webhook"])
+        message = stderr.getvalue()
+        self.assertEqual(result, 1)
+        self.assertIn("--ads-script", message)
+        self.assertIn("share link", message)
+        self.assertIn("ask the partner", message)
+        self.assertNotIn("Could not find a ADS", message)
+
     def test_parses_contract_and_project_checklist(self):
         contract = parse_ads_script(self.ads_csv)
         checklist = parse_working_file(self.working_csv)
