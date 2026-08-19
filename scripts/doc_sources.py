@@ -21,6 +21,11 @@ GID = re.compile(r"[#&?]gid=([0-9]+)")
 DOC_PAIR = re.compile(r"^\s*(?P<key>[^:\t]{2,60}?)\s*(?::|\t|\s{3,})\s*(?P<value>.+?)\s*$")
 
 
+MANUAL_FALLBACK = (
+    "Fix it in one of two ways:\n  1) Open the link, Share > General access > Anyone with the link (Viewer), then rerun.\n  2) Or download it yourself: File > Download > Comma Separated Values (.csv) for a Sheet, or Plain text (.txt) for a Doc, save it into the project, and pass the local path instead of the link."
+)
+
+
 class DocumentError(ValueError):
     """Raised when a supplied document cannot be fetched or understood."""
 
@@ -55,10 +60,9 @@ def _download(url: str) -> bytes:
         raise DocumentError(f"Timed out downloading {url}") from error
     if completed.returncode != 0:
         detail = completed.stderr.decode("utf-8", errors="replace").strip() or f"curl exit {completed.returncode}"
-        raise DocumentError(
-            f"Could not download {url}: {detail}. "
-            "Check that link sharing is set to anyone-with-the-link viewer."
-        )
+        denied = " 403" in f" {detail}" or "403" in detail or "401" in detail
+        reason = "access is denied" if denied else "the download failed"
+        raise DocumentError(f"Could not read {url}: {reason} ({detail}).\n{MANUAL_FALLBACK}")
     return completed.stdout
 
 
@@ -104,8 +108,8 @@ def resolve_document(value: str, label: str, cache_dir: Path | None = None) -> P
     payload = _download(url)
     if _looks_like_login_page(payload):
         raise DocumentError(
-            f"{label} link returned a Google sign-in page instead of the document. "
-            "Set link sharing to anyone-with-the-link viewer, then rerun."
+            f"{label}: the link returned a Google sign-in page, so this document is not "
+            f"shared publicly.\n{MANUAL_FALLBACK}"
         )
     directory = cache_dir or Path(tempfile.mkdtemp(prefix="ads-audit-docs-"))
     directory.mkdir(parents=True, exist_ok=True)

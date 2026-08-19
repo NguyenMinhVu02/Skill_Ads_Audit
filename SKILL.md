@@ -20,7 +20,39 @@ Two documents, each either a local file or a Google Sheets/Docs share link:
 | **ADS SCRIPTS** | placement key, ad type, ad-unit ID, AdMob APP ID |
 | **working checklist** | app name, package, Firebase project, Adjust/Facebook/TikTok tokens |
 
-If either is missing, ask the partner for it. Never substitute base IDs.
+Never substitute base IDs, and never audit with only one of the two.
+
+### Getting the documents
+
+Resolve inputs in this order, and stop to ask rather than guessing:
+
+1. **Already in the project.** Two CSV files, one named `ADS SCRIPTS`, one named
+   `working` / `work file`. Auto-discovered — nothing to ask.
+2. **Nothing found, or the partner gave no link.** Ask for both documents
+   before running anything:
+
+   > Gửi giúp mình 2 tài liệu: link Google Sheets/Docs của **ADS SCRIPTS** và
+   > của **working checklist** (để chế độ *Bất kỳ ai có link* → *Người xem*).
+   > Hoặc tải sẵn 2 file CSV về máy rồi cho mình đường dẫn.
+
+   Do not run a partial audit, do not invent IDs, and do not fall back to the
+   base project's values.
+3. **A link was given but access is denied.** The auditor stops with a sharing
+   error. Relay both options to the partner, in their language:
+
+   - Open the link → **Share** → **General access** → *Anyone with the link*
+     (Viewer), then tell you to rerun; or
+   - Download it themselves — **File → Download → Comma Separated Values (.csv)**
+     for a Sheet, **Plain text (.txt)** for a Doc — save it into the project
+     folder, and give you the file path. Then rerun with the local path in place
+     of the link.
+
+   Both routes are equally valid. Prefer whichever the partner can do faster; a
+   downloaded CSV is often quicker than getting sharing changed on a company
+   Drive.
+
+4. **Still unavailable.** Stop and report that the audit cannot start. An audit
+   without its contract documents is not an audit.
 
 ## Run the audit
 

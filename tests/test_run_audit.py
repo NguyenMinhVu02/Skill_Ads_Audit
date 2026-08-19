@@ -277,6 +277,26 @@ class AdsAuditTest(unittest.TestCase):
         path.write_text(text, encoding="utf-8")
         return path
 
+    def test_denied_link_tells_the_partner_how_to_supply_the_file_manually(self):
+        completed = subprocess.CompletedProcess([], 22, stdout=b"", stderr=b"The requested URL returned error: 403")
+        with patch.object(doc_sources.subprocess, "run", return_value=completed):
+            with self.assertRaises(doc_sources.DocumentError) as caught:
+                doc_sources.resolve_document(
+                    "https://docs.google.com/spreadsheets/d/1AbC/edit", "ads-script", self.root / "docs"
+                )
+        message = str(caught.exception)
+        self.assertIn("access is denied", message)
+        self.assertIn("Anyone with the link", message)
+        self.assertIn("Comma Separated Values", message)
+
+    def test_login_page_error_also_offers_the_manual_download_route(self):
+        with patch.object(doc_sources, "_download", return_value=b"<html>accounts.google.com Sign in"):
+            with self.assertRaises(doc_sources.DocumentError) as caught:
+                doc_sources.resolve_document(
+                    "https://docs.google.com/document/d/1AbC/edit", "working-file", self.root / "docs"
+                )
+        self.assertIn("pass the local path instead of the link", str(caught.exception))
+
     def test_parses_contract_and_project_checklist(self):
         contract = parse_ads_script(self.ads_csv)
         checklist = parse_working_file(self.working_csv)
