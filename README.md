@@ -11,8 +11,8 @@ Install it once, then ask the AI to check any Android project.
 ## Install
 
 ```bash
-git clone https://github.com/NguyenMinhVu02/Skill_Ads_Audit.git
-cd Skill_Ads_Audit
+git clone https://github.com/NguyenMinhVu02/infinity-ads-compliance-audit.git
+cd infinity-ads-compliance-audit
 ./install.sh          # macOS / Linux
 .\install.ps1         # Windows PowerShell
 ```

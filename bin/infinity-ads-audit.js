@@ -159,7 +159,7 @@ export function findPython() {
 }
 
 function printHelp() {
-  process.stdout.write(`Infinity Ads Compliance Audit\n\nUsage:\n  npx -y github:NguyenMinhVu02/Skill_Ads_Audit audit [options]\n\nThe CLI auto-discovers one ADS SCRIPTS CSV and one working-file CSV under --project.\nPass explicit paths when there are multiple files:\n  --ads-script "path/to/ADS SCRIPTS.csv"\n  --working-file "path/to/working-file.csv"\n\nCommon options:\n  --project PATH       Android project root (default: .)\n  --no-webhook         Write local reports only\n  --output-dir PATH    Report directory (default: ads-audit-output)\n`);
+  process.stdout.write(`Infinity Ads Compliance Audit\n\nUsage:\n  npx -y github:NguyenMinhVu02/infinity-ads-compliance-audit audit [options]\n\nThe CLI auto-discovers one ADS SCRIPTS CSV and one working-file CSV under --project.\nPass explicit paths when there are multiple files:\n  --ads-script "path/to/ADS SCRIPTS.csv"\n  --working-file "path/to/working-file.csv"\n\nCommon options:\n  --project PATH       Android project root (default: .)\n  --no-webhook         Write local reports only\n  --output-dir PATH    Report directory (default: ads-audit-output)\n`);
 }
 
 export function main(argv = process.argv.slice(2)) {
